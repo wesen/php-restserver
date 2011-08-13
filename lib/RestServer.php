@@ -68,7 +68,10 @@ class Server {
    * Returned object or class, `authorize' if authorization is
    * required, calls the actual method and returns the result.
    **/
-  public function handle($path) {
+  public function handle($path, $options = array()) {
+    $defaults = array('throwException' => false);
+    $options = array_merge($defaults, $options);
+    
     $this->url = $path;
     $this->method = $this->getMethod();
     
@@ -77,9 +80,9 @@ class Server {
     }
     
     list ($obj, $method, $params, $this->params, $noAuth, $isStatic) = $this->findUrl();
-    
-    if ($obj) {
-      try {
+
+    try {
+      if ($obj) {
         /* static method */
         if ($isStatic) {
           if (!$noAuth && method_exists($obj, 'authorize')) {
@@ -113,16 +116,18 @@ class Server {
         }
       
         $result = call_user_func_array(array($obj, $method), $params);
-      } catch (RestException $e) {
-        $this->handleError($e->getCode(), $e->getMessage());
-        return;
+        if ($result != null) {
+          $this->sendData($result);
+        }
+      } else {
+        throw new RestException(404);
       }
-    
-      if ($result != null) {
-        $this->sendData($result);
+    } catch (RestException $e) {
+      if ($options["throwException"]) {
+        throw $e;
       }
-    } else {
-      $this->handleError(404);
+      $this->handleError($e->getCode(), $e->getMessage());
+      return;
     }
   }
 
@@ -198,6 +203,10 @@ class Server {
    * Find the url in the registered classes.
    **/
   protected function findUrl() {
+    if (!isset($this->map[$this->method])) {
+      return null;
+    }
+    
     $urls = $this->map[$this->method];
     if (!$urls) {
       return null;
