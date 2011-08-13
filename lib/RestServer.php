@@ -59,7 +59,7 @@ class Server {
     if ($ask && $this->isCLI) {
       header("WWW-Authenticate: Basic realm=\"$this->realm\"");
     }
-    throw new RestException(401, "You are not authorized to access this resource.");
+    throw new Exception(401, "You are not authorized to access this resource.");
   }
 
   /**
@@ -121,9 +121,9 @@ class Server {
           $this->sendData($result);
         }
       } else {
-        throw new RestException(404);
+        throw new Exception(404);
       }
-    } catch (RestException $e) {
+    } catch (Exception $e) {
       if ($options["throwException"]) {
         throw $e;
       }
@@ -412,7 +412,7 @@ class Server {
                          );
 }
 
-class RestException extends \Exception {
+class Exception extends \Exception {
   public function __construct($code, $message = null) {
     parent::__construct($message, $code);
   }
