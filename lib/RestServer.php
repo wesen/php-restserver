@@ -241,7 +241,7 @@ class Server {
       return null;
     }
     
-    $urls = $this->map2[$this->method];
+    $urls = $this->map[$this->method];
     if (!$urls) {
       return null;
     }
@@ -347,8 +347,7 @@ class Server {
                                      "args" => $args,
                                      "needsAuthorization" => !$noAuth,
                                      "isStatic" => $method->isStatic()));
-          $this->map2[$httpMethod][$url] = $method;
-          $this->map[$httpMethod][$url] = $call;
+          $this->map[$httpMethod][$url] = $method;
         }
       }
     }
