@@ -23,7 +23,6 @@ class Server {
 
   /* hash from HTTP method -> list of url objects */
   protected $map = array();
-  protected $errorClasses = array();
   protected $cached;
   
   /**
@@ -154,32 +153,9 @@ class Server {
   }
 
   /**
-   * Add an error class.
-   **/
-  public function addErrorClass($class) {
-    $this->errorClasses[] = $class;
-  }
-
-  /**
    * Handle a HTTP error by looking up the correct class and deferring to it.
    **/
   public function handleError($statusCode, $errorMessage = null) {
-    $method = "handle$statusCode";
-    foreach ($this->errorClasses as $class) {
-      if (is_Object($class)) {
-        $reflection = new ReflectionObject($class);
-      } elseif (class_exists($class)) {
-        $reflection = new ReflectionClass($class);
-      }
-
-      if ($reflection->hasMethod($method)) {
-        $obj = is_string($class) ? new $class() : $class;
-        $obj->$method();
-        return;
-      }
-    }
-
-
     $message = $this->codes[$statusCode]. ($errorMessage && $this->mode == 'debug' ? ': ' . $errorMessage : '');
 
     $this->setStatus($statusCode);
