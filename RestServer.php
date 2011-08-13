@@ -11,7 +11,7 @@
 
 define('PHP_REST_SERVER_VERSION_ID', '0.1');
 
-require_once(dirname(__FILE__).'lib/RestServer.php');
+require_once(dirname(__FILE__).'/lib/RestServer.php');
 
 
 ?>

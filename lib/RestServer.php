@@ -9,9 +9,9 @@
  * Author: Jacob Wright
  */
 
-namespace RestServer;
+namespace REST;
 
-class RestServer {
+class Server {
   public $url;
   public $method;
   public $params;
@@ -90,7 +90,7 @@ class RestServer {
             if (class_exists($obj)) {
               $obj = new $obj();
             } else {
-              throw new Exception("Class $obj does not exist");
+              throw new \Exception("Class $obj does not exist");
             }
           }
         
@@ -130,9 +130,9 @@ class RestServer {
 
     if (!$this->cached) {
       if (is_string($class) && !class_exists($class)) {
-        throw new Exception('Invalid method or class');
+        throw new \Exception('Invalid method or class');
       } elseif (!is_string($class) && !is_object($class)) {
-        throw new Exception('Invalid method or class; must be a classname or object');
+        throw new \Exception('Invalid method or class; must be a classname or object');
       }
 
       // remove leading /
@@ -416,7 +416,7 @@ class RestServer {
                          );
 }
 
-class RestException extends Exception {
+class RestException extends \Exception {
   public function __construct($code, $message = null) {
     parent::__construct($message, $code);
   }
