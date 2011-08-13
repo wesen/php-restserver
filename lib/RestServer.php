@@ -74,10 +74,18 @@ class Server {
     $options = array_merge($defaults, $options);
     
     $this->url = $path;
+    if (isset($options["method"])) {
+      $this->method = $options["method"];
+    } else {
     $this->method = $this->getMethod();
+    }
     
+    if (isset($options["data"])) {
+      $this->data = $options["data"];
+    } else {
     if (($this->method == 'PUT') || ($this->method == 'POST')) {
       $this->data = $this->getData();
+    }
     }
     
     list ($obj, $method, $params, $this->params, $noAuth, $isStatic) = $this->findUrl();
