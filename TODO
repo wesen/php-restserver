@@ -1,7 +1,7 @@
-- remove error classes
+X remove error classes
 - mock header and body for simpletest
 - mock http method for simpletest
-- replace url arrays with url objects to make code more readable
+X replace url arrays with url objects to make code more readable
 - refactor caching
 - add expire to caching
 - add class parameter to initialization
