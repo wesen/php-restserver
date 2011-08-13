@@ -9,9 +9,11 @@
  * Author: Jacob Wright
  */
 
-namespace RestServer;
+namespace REST;
 
-class RestServer {
+require_once(dirname(__FILE__)."/helpers.php");
+
+class Server {
   public $url;
   public $method;
   public $params;
@@ -19,19 +21,22 @@ class RestServer {
   public $realm;
   public $mode;
 
+  /* hash from HTTP method -> list of url objects */
   protected $map = array();
   protected $errorClasses = array();
   protected $cached;
-
+  
   /**
    * The constructor.
    *
    * @param string $mode The mode, either debug or production
    **/
-  public function __construct($mode = 'debug', $realm = 'Rest Server') {
-    $this->cacheDir = dirname(__FILE__).'/cache';
-    $this->mode = $mode;
-    $this->realm = $realm;
+  public function __construct($options = array()) {
+    $defaults = array('mode' => 'debug',
+                      'realm' => 'Rest Server',
+                      'cacheDir' => dirname(__FILE__)."/cache");
+    $options = array_merge($defaults, $options);
+    object_set_options($this, $options, array_keys($defaults));
   }
 
   /**
@@ -90,7 +95,7 @@ class RestServer {
             if (class_exists($obj)) {
               $obj = new $obj();
             } else {
-              throw new Exception("Class $obj does not exist");
+              throw new \Exception("Class $obj does not exist");
             }
           }
         
@@ -130,9 +135,9 @@ class RestServer {
 
     if (!$this->cached) {
       if (is_string($class) && !class_exists($class)) {
-        throw new Exception('Invalid method or class');
+        throw new \Exception('Invalid method or class');
       } elseif (!is_string($class) && !is_object($class)) {
-        throw new Exception('Invalid method or class; must be a classname or object');
+        throw new \Exception('Invalid method or class; must be a classname or object');
       }
 
       // remove leading /
@@ -226,6 +231,7 @@ class RestServer {
       $args = $call[2];
 
       if (!strstr($url, '$')) {
+        /* no variable in url, no regexp needed */
         if ($url == $this->url) {
           if (isset($args['params'])) {
             $params[$args['params']] = $_GET;
@@ -416,7 +422,7 @@ class RestServer {
                          );
 }
 
-class RestException extends Exception {
+class RestException extends \Exception {
   public function __construct($code, $message = null) {
     parent::__construct($message, $code);
   }
