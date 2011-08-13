@@ -23,7 +23,6 @@ class Server {
 
   /* hash from HTTP method -> list of url objects */
   protected $map = array();
-  protected $errorClasses = array();
   protected $cached;
   
   /**
@@ -69,7 +68,10 @@ class Server {
    * Returned object or class, `authorize' if authorization is
    * required, calls the actual method and returns the result.
    **/
-  public function handle($path) {
+  public function handle($path, $options = array()) {
+    $defaults = array('throwException' => false);
+    $options = array_merge($defaults, $options);
+    
     $this->url = $path;
     $this->method = $this->getMethod();
     
@@ -78,9 +80,9 @@ class Server {
     }
     
     list ($obj, $method, $params, $this->params, $noAuth, $isStatic) = $this->findUrl();
-    
-    if ($obj) {
-      try {
+
+    try {
+      if ($obj) {
         /* static method */
         if ($isStatic) {
           if (!$noAuth && method_exists($obj, 'authorize')) {
@@ -114,16 +116,18 @@ class Server {
         }
       
         $result = call_user_func_array(array($obj, $method), $params);
-      } catch (RestException $e) {
-        $this->handleError($e->getCode(), $e->getMessage());
-        return;
+        if ($result != null) {
+          $this->sendData($result);
+        }
+      } else {
+        throw new RestException(404);
       }
-    
-      if ($result != null) {
-        $this->sendData($result);
+    } catch (RestException $e) {
+      if ($options["throwException"]) {
+        throw $e;
       }
-    } else {
-      $this->handleError(404);
+      $this->handleError($e->getCode(), $e->getMessage());
+      return;
     }
   }
 
@@ -154,32 +158,9 @@ class Server {
   }
 
   /**
-   * Add an error class.
-   **/
-  public function addErrorClass($class) {
-    $this->errorClasses[] = $class;
-  }
-
-  /**
    * Handle a HTTP error by looking up the correct class and deferring to it.
    **/
   public function handleError($statusCode, $errorMessage = null) {
-    $method = "handle$statusCode";
-    foreach ($this->errorClasses as $class) {
-      if (is_Object($class)) {
-        $reflection = new ReflectionObject($class);
-      } elseif (class_exists($class)) {
-        $reflection = new ReflectionClass($class);
-      }
-
-      if ($reflection->hasMethod($method)) {
-        $obj = is_string($class) ? new $class() : $class;
-        $obj->$method();
-        return;
-      }
-    }
-
-
     $message = $this->codes[$statusCode]. ($errorMessage && $this->mode == 'debug' ? ': ' . $errorMessage : '');
 
     $this->setStatus($statusCode);
@@ -222,6 +203,10 @@ class Server {
    * Find the url in the registered classes.
    **/
   protected function findUrl() {
+    if (!isset($this->map[$this->method])) {
+      return null;
+    }
+    
     $urls = $this->map[$this->method];
     if (!$urls) {
       return null;

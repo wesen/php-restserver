@@ -27,7 +27,7 @@ class TestRest extends UnitTestCase {
   }
 
   public function testNoRoute() {
-    
+    $this->server->handle('/foo', array('throwException' => true));
   }
 }
 
