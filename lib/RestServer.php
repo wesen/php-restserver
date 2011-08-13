@@ -33,7 +33,8 @@ class Server {
   public function __construct($options = array()) {
     $defaults = array('mode' => 'debug',
                       'realm' => 'Rest Server',
-                      'cacheDir' => dirname(__FILE__)."/cache");
+                      'cacheDir' => dirname(__FILE__)."/cache",
+                      'isCLI' => false);
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
   }
@@ -55,7 +56,7 @@ class Server {
    * Handle an unauthorized call by asking for HTTP authentication.
    **/
   public function unauthorized($ask = false) {
-    if ($ask) {
+    if ($ask && $this->isCLI) {
       header("WWW-Authenticate: Basic realm=\"$this->realm\"");
     }
     throw new RestException(401, "You are not authorized to access this resource.");
@@ -344,9 +345,11 @@ class Server {
    *
    **/
   public function sendData($data) {
+    if (!$this->isCLI) {
     header("Cache-Control: no-cache, must-revalidate");
     header("Expires: 0");
     header("Content-Type: application/json");
+    }
 
     if (is_object($data) && method_exists($data, '__keepOut')) {
       /* remove data that shouldn't be serialized */
@@ -366,7 +369,9 @@ class Server {
    **/
   public function setStatus($code) {
     $code .= ' ' . $this->codes[strval($code)];
+    if (!$this->isCLI) {
     header("{$_SERVER['SERVER_PROTOCOL']} $code");
+  }
   }
 
   private $codes = array(
