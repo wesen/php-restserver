@@ -77,17 +77,17 @@ class Server {
     if (isset($options["method"])) {
       $this->method = $options["method"];
     } else {
-    $this->method = $this->getMethod();
+      $this->method = $this->getMethod();
     }
-    
+
     if (isset($options["data"])) {
       $this->data = $options["data"];
     } else {
-    if (($this->method == 'PUT') || ($this->method == 'POST')) {
-      $this->data = $this->getData();
+      if (($this->method == 'PUT') || ($this->method == 'POST')) {
+        $this->data = $this->getData();
+      }
     }
-    }
-    
+      
     list ($obj, $method, $params, $this->params, $noAuth, $isStatic) = $this->findUrl();
 
     try {
@@ -96,8 +96,8 @@ class Server {
         if ($isStatic) {
           if (!$noAuth && method_exists($obj, 'authorize')) {
             if (!$obj::authorize()) {
-              $this->sendData($this->unauthorized(false));
-              exit();
+              $this->unauthorized(false);
+              return;
             }
           }
         } else {
@@ -118,15 +118,17 @@ class Server {
           
           if (!$noAuth && method_exists($obj, 'authorize')) {
             if (!$obj->authorize()) {
-              $this->sendData($this->unauthorized(false));
-              exit();
+              $this->unauthorized(false);
+              return;
             }
           }
         }
       
         $result = call_user_func_array(array($obj, $method), $params);
         if ($result != null) {
-          $this->sendData($result);
+          return array("status" => '200',
+                       "error" => false,
+                       "data" => $result);
         }
       } else {
         throw new Exception(404);
@@ -134,9 +136,13 @@ class Server {
     } catch (Exception $e) {
       if ($options["throwException"]) {
         throw $e;
+      } else {
+        $message = $this->codes[$e->getCode()]. ($e->getMessage() && $this->mode == 'debug' ? ': ' . $e->getMessage() : '');
+
+        return array("status" => $e->getCode(),
+                     "error" => true,
+                     "data" => $message);
       }
-      $this->handleError($e->getCode(), $e->getMessage());
-      return;
     }
   }
 
@@ -166,16 +172,6 @@ class Server {
     }
   }
 
-  /**
-   * Handle a HTTP error by looking up the correct class and deferring to it.
-   **/
-  public function handleError($statusCode, $errorMessage = null) {
-    $message = $this->codes[$statusCode]. ($errorMessage && $this->mode == 'debug' ? ': ' . $errorMessage : '');
-
-    $this->setStatus($statusCode);
-    $this->sendData(array('error' => array('code' => $statusCode,
-                                           'message' => $message)));
-  }
 
   /**
    * Load the cache from file.
@@ -354,9 +350,9 @@ class Server {
    **/
   public function sendData($data) {
     if (!$this->isCLI) {
-    header("Cache-Control: no-cache, must-revalidate");
-    header("Expires: 0");
-    header("Content-Type: application/json");
+      header("Cache-Control: no-cache, must-revalidate");
+      header("Expires: 0");
+      header("Content-Type: application/json");
     }
 
     if (is_object($data) && method_exists($data, '__keepOut')) {
@@ -378,8 +374,8 @@ class Server {
   public function setStatus($code) {
     $code .= ' ' . $this->codes[strval($code)];
     if (!$this->isCLI) {
-    header("{$_SERVER['SERVER_PROTOCOL']} $code");
-  }
+      header("{$_SERVER['SERVER_PROTOCOL']} $code");
+    }
   }
 
   private $codes = array(
