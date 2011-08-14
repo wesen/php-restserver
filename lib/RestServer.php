@@ -85,8 +85,11 @@ class UrlHandler {
       }
     }
 
-    return array_merge(array('params' => $_GET,
-                             'data' => $data),
+    return array_merge(array('__GET' => $_GET,
+                             '__data' => $data,
+                             '__requestPath' => $path,
+                             '__handler' => $this,
+                             '__urlMatches' => $matches),
                        $matches);
   }
   
