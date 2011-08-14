@@ -279,23 +279,15 @@ class Server {
   /**
    * Send data and HTTP headers
    **/
-  public function sendData($data) {
+  public function sendResult($result) {
     if (!$this->isCLI) {
       header("Cache-Control: no-cache, must-revalidate");
       header("Expires: 0");
       header("Content-Type: application/json");
     }
 
-    if (is_object($data) && method_exists($data, '__keepOut')) {
-      /* remove data that shouldn't be serialized */
-      $data = clone $data;
-      foreach ($data->__keepOut() as $prop) {
-        unset($data->$prop);
-      }
-    }
-
-    $data = json_encode($data);
-
+    $this->setStatus($result['status']);
+    $data = json_encode($result["data"]);
     echo $data;
   }
 
