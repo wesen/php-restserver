@@ -123,7 +123,7 @@ class Server {
    * Handle an unauthorized call by asking for HTTP authentication.
    **/
   public function unauthorized($ask = false) {
-    if ($ask && $this->isCLI) {
+    if ($ask && !$this->isCLI) {
       header("WWW-Authenticate: Basic realm=\"$this->realm\"");
     }
     throw new Exception(401, "You are not authorized to access this resource.");
