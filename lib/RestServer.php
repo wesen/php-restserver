@@ -13,7 +13,10 @@ namespace REST;
 
 require_once(dirname(__FILE__)."/helpers.php");
 
-class Method {
+/**
+ * Object that describes a single REST method url.
+ **/
+class UrlHandler {
   public $httpMethod;
   public $class;
   public $methodName;
@@ -338,20 +341,15 @@ class Server {
           foreach ($params as $param) {
             $args[$param->getName()] = $param->getPosition();
           }
-          $call = array($class, $method->getName());
-          $call[] = $args;
-          $call[] = null;
-          $call[] = $noAuth;
-          $call[] = $method->isStatic();
 
-          $method = new Method(array("httpMethod" => $httpMethod,
+          $handler = new UrlHandler(array("httpMethod" => $httpMethod,
                                      "url" => $url,
                                      "class" => $class,
                                      "methodName" => $method->getName(),
                                      "args" => $args,
                                      "needsAuthorization" => !$noAuth,
                                      "isStatic" => $method->isStatic()));
-          $this->map[$httpMethod][$url] = $method;
+          $this->map[$httpMethod][$url] = $handler;
         }
       }
     }
