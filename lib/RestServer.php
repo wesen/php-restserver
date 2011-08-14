@@ -12,133 +12,8 @@
 namespace REST;
 
 require_once(dirname(__FILE__)."/helpers.php");
-
-/**
- * Handler for a single REST method URL
- **/
-class UrlHandler {
-  public $httpMethod;
-  public $class;
-  public $methodName;
-  public $args;
-  public $needsAuthorization;
-  public $isStatic;
-  public $url;
-
-  public function __construct($options = array()) {
-    $defaults = array("httpMethod" => null,
-                      "class" => null,
-                      "methodName" => null,
-                      "args" => array(),
-                      "needsAuthorization" => false,
-                      "url" => "");
-    $options = array_merge($defaults, $options);
-    object_set_options($this, $options, array_keys($defaults));
-
-    if (strstr($this->url, "$")) {
-      $this->regex = preg_replace('/\\\\\$([\w\d]+)\.\.\./', '(?P<$1>.+)', str_replace('\.\.\.', '...', preg_quote($this->url)));
-      $this->regex = preg_replace('/\\\\\$([\w\d]+)/', '(?P<$1>[^\/]+)', $this->regex);
-      $this->regex = ":^".$this->regex."\$:";
-    } else {
-      $this->regex = null;
-    }
-  }
-
-  /**
-   * Generate the parameter for the method call, according to matches.
-   **/
-  public function genParams($matches) {
-    $params = array();
-    
-    foreach ($matches as $arg => $match) {
-      if (is_numeric($arg)) {
-        continue;
-      }
-      
-      if (isset($this->args[$arg])) {
-        $params[$this->args[$arg]] = $match;
-      }
-    }
-    ksort($params);
-    end($params);
-    
-    return $params;
-  }
-
-  /**
-   * Check if the url handlers matches the given path.
-   *
-   * Returns null if it doesn't match, or the bound variables.
-   **/
-  public function matchPath($path, $data) {
-    $params = array();
-    $matches = array();
-    
-    if ($this->regex) {
-      if (!preg_match($this->regex, urldecode($path), $matches)) {
-        return null;
-      }
-    } else {
-      if ($path != $this->url) {
-        return null;
-      }
-    }
-
-    return array_merge(array('__GET' => $_GET,
-                             '__data' => $data,
-                             '__requestPath' => $path,
-                             '__handler' => $this,
-                             '__urlMatches' => $matches),
-                       $matches);
-  }
-  
-  public function call($params) {
-    /* static method */
-    if (is_string($className = $this->class)) {
-      $obj = new $className();
-    } else {
-      $obj = $this->class;
-    }
-
-    if (method_exists($obj, 'init')) {
-      $obj->init();
-    }
-    
-    if ($this->needsAuthorization && method_exists($obj, 'authorize')) {
-      if (!$obj->authorize()) {
-        throw new Exception('401');
-      }
-    }
-      
-    $result = call_user_func_array(array($obj, $this->methodName), $params);
-    if ($result != null) {
-      return array("status" => '200',
-                   "error" => false,
-                   "data" => $result);
-    }
-  }    
-};
-
-/**
- * Handler for a single REST method URL on a static method
- **/
-class StaticUrlHandler extends UrlHandler {
-  public function call($params) {
-    if ($this->needsAuthorization && method_exists($this->class, 'authorize')) {
-      $class = $this->class;
-      if (!$class::authorize()) {
-        throw new Exception('401');
-      }
-    }
-    
-    $result = call_user_func_array(array($this->class, $this->methodName), $params);
-    if ($result != null) {
-      return array("status" => '200',
-                   "error" => false,
-                   "data" => $result);
-    }
-  }
-}
+require_once(dirname(__FILE__)."/UrlHandler.php");
+require_once(dirname(__FILE__)."/StaticUrlHandler.php");
 
 /***************************************************************************
  *
@@ -174,24 +49,63 @@ class Server {
                       'handlers' => array());
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
-    foreach ($this->handlers as $handler) {
+
+    $handlers = $this->handlers; // copy because addHandler modified $this->handlers
+    foreach ($handlers as $handler) {
       if (is_array($handler)) {
         $this->addHandler($handler[0], $handler[1]);
       } else {
         $this->addHandler($handler);
       }
     }
+
+    $this->loadCache();
+  }
+
+  public function __destruct() {
+    $this->writeCache();
   }
 
   /**
-   * The destructor. Stores the url map in cache if the object is not cached.
+   * Stores the url map in cache if the object is not cached.
    **/
-  public function __destruct() {
+  protected function writeCache() {
     if ($this->mode == 'production' && !$this->cached) {
       if (function_exists('apc_store')) {
         apc_store('urlMap', $this->map);
       } else {
         file_put_contents($this->cacheDir . '/urlMap.cache', serialize($this->map));
+      }
+    }
+  }
+
+  /**
+   * Load the cache from file.
+   *
+   * In debug mode, remove the cache.
+   **/
+  protected function loadCache() {
+    if ($this->cached !== null) {
+      return;
+    }
+
+    $this->cached = false;
+
+    if ($this->mode == 'production') {
+      if (function_exists('apc_fetch')) {
+        $map = apc_fetch('urlMap');
+      } elseif (file_exists($this->cacheDir . '/urlMap.cache')) {
+        $map = unserialize(file_get_contents($this->cacheDir . '/urlMap.cache'));
+      }
+      if ($map && is_array($map)) {
+        $this->map = $map;
+        $this->cached = true;
+      }
+    } else {
+      if (function_exists('apc_delete')) {
+        apc_delete('urlMap');
+      } else {
+        @unlink($this->cacheDir . '/urlMap.cache');
       }
     }
   }
@@ -251,8 +165,9 @@ class Server {
    * Add a handler to the Rest Server.
    **/
   public function addHandler($handler, $basePath = '') {
-    $this->loadCache();
-
+    array_push($this->handlers, $handler);
+    $this->handlers = array_unique($this->handlers);
+    
     if (!$this->cached) {
       if (is_string($handler) && !class_exists($handler)) {
         throw new \Exception('Invalid method or class');
@@ -274,37 +189,6 @@ class Server {
     }
   }
 
-
-  /**
-   * Load the cache from file.
-   *
-   * In debug mode, remove the cache.
-   **/
-  protected function loadCache() {
-    if ($this->cached !== null) {
-      return;
-    }
-
-    $this->cached = false;
-
-    if ($this->mode == 'production') {
-      if (function_exists('apc_fetch')) {
-        $map = apc_fetch('urlMap');
-      } elseif (file_exists($this->cacheDir . '/urlMap.cache')) {
-        $map = unserialize(file_get_contents($this->cacheDir . '/urlMap.cache'));
-      }
-      if ($map && is_array($map)) {
-        $this->map = $map;
-        $this->cached = true;
-      }
-    } else {
-      if (function_exists('apc_delete')) {
-        apc_delete('urlMap');
-      } else {
-        @unlink($this->cacheDir . '/urlMap.cache');
-      }
-    }
-  }
 
   /**
    * Generate the url map for a specific handler.
@@ -357,6 +241,12 @@ class Server {
       }
     }
   }
+
+  /***************************************************************************
+   *
+   * HTTP stuff
+   *
+   ***************************************************************************/
 
   /**
    * Get the HTTP method for the current HTTP request, taking the
