@@ -279,34 +279,21 @@ class Server {
   /**
    * Send data and HTTP headers
    **/
-  public function sendData($data) {
+  public function sendResult($result) {
     if (!$this->isCLI) {
       header("Cache-Control: no-cache, must-revalidate");
       header("Expires: 0");
       header("Content-Type: application/json");
     }
 
-    if (is_object($data) && method_exists($data, '__keepOut')) {
-      /* remove data that shouldn't be serialized */
-      $data = clone $data;
-      foreach ($data->__keepOut() as $prop) {
-        unset($data->$prop);
-      }
-    }
-
-    $data = json_encode($data);
-
-    echo $data;
-  }
-
-  /**
-   * Set the HTTP code for this request.
-   **/
-  public function setStatus($code) {
-    $code .= ' ' . $this->codes[strval($code)];
+    $status .= ' ' . $this->codes[strval($result["status"])];
     if (!$this->isCLI) {
-      header("{$_SERVER['SERVER_PROTOCOL']} $code");
+      header("{$_SERVER['SERVER_PROTOCOL']} $status");
     }
+    
+    $this->setStatus($result['status']);
+    $data = json_encode($result["data"]);
+    echo $data;
   }
 
   private $codes = array(

@@ -1,9 +1,10 @@
 X remove error classes
 X add class parameter to initialization
 X replace url arrays with url objects to make code more readable
+X catch exceptions in handler
+X refactor caching
 
+- add function to keep out certain fields ??
 - mock header and body for simpletest
 - mock http method for simpletest
-- catch exceptions in handler
-- refactor caching
 - add expire to caching
