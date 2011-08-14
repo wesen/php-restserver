@@ -76,7 +76,7 @@ class UrlHandler {
   /**
    * Check if the url handlers matches the given path.
    *
-   * Returns null if it doesn't match, or an array of bound parameters for the method call.
+   * Returns null if it doesn't match, or the bound variables.
    **/
   public function matchPath($path, $data) {
     $params = array();
@@ -92,12 +92,12 @@ class UrlHandler {
       }
     }
 
-    return $this->genParams(array_merge(array('params' => $_GET,
-                                              'data' => $data),
-                                        $matches));
+    return array_merge(array('params' => $_GET,
+                             'data' => $data),
+                       $matches);
   }
   
-  public function handleCall($params) {
+  public function call($params) {
     /* static method */
     if ($this->isStatic) {
       if ($this->needsAuthorization && method_exists($this->class, 'authorize')) {
@@ -218,14 +218,19 @@ class Server {
       }
     }
 
-    list ($obj, $params) = $this->findUrl($httpMethod, $path);
-
     try {
-      if ($obj) {
-        return $obj->handleCall($params);
-      } else {
-        throw new Exception(404);
+      if (isset($this->map[$httpMethod])) {
+        foreach ($this->map[$httpMethod] as $url => $handler) {
+          $matches = $handler->matchPath($path, $this->data);
+          if ($matches !== null) {
+            $params = $handler->genParams($matches);
+            return $handler->call($params);
+          }
+        }
       }
+
+      // not found, throw a 404
+      throw new Exception('404');
     } catch (Exception $e) {
       if ($options["throwException"]) {
         throw $e;
@@ -251,7 +256,6 @@ class Server {
       } elseif (!is_string($class) && !is_object($class)) {
         throw new \Exception('Invalid method or class; must be a classname or object');
       }
-
 
       // remove leading /
       if (substr($basePath, 0, 1) == '/') {
@@ -294,26 +298,6 @@ class Server {
         apc_delete('urlMap');
       } else {
         @unlink($this->cacheDir . '/urlMap.cache');
-      }
-    }
-  }
-
-  /**
-   * Find the url in the registered classes.
-   **/
-  protected function findUrl($httpMethod, $path) {
-    if (!isset($this->map[$httpMethod])) {
-      return null;
-    }
-    
-    $urls = $this->map[$httpMethod];
-
-    foreach ($urls as $url => $handler) {
-      $params = $handler->matchPath($path, $this->data);
-      if ($params !== null) {
-        return array($handler, $params);
-      } else {
-        continue;
       }
     }
   }
