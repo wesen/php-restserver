@@ -286,12 +286,13 @@ class Server {
       header("Content-Type: application/json");
     }
 
-    $status .= ' ' . $this->codes[strval($result["status"])];
-    if (!$this->isCLI) {
-      header("{$_SERVER['SERVER_PROTOCOL']} $status");
-    }
     
-    $this->setStatus($result['status']);
+    if (!$this->isCLI) {
+      $status = $result["status"];
+      $code = $this->codes[strval($status)];
+      header("{$_SERVER['SERVER_PROTOCOL']} $status $code");
+    }
+
     $data = json_encode($result["data"]);
     echo $data;
   }
