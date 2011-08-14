@@ -152,7 +152,6 @@ class Server {
 
   /* hash from HTTP method -> list of url objects */
   var $map = array();
-  var $map2 = array();
   var $cached;
   
   /**
