@@ -50,6 +50,8 @@ class Server {
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
 
+    $this->loadCache();
+    
     $handlers = $this->handlers; // copy because addHandler modified $this->handlers
     foreach ($handlers as $handler) {
       if (is_array($handler)) {
@@ -58,8 +60,6 @@ class Server {
         $this->addHandler($handler);
       }
     }
-
-    $this->loadCache();
   }
 
   public function __destruct() {
@@ -187,10 +187,10 @@ class Server {
    * Add a handler to the Rest Server.
    **/
   public function addHandler($handler, $basePath = '') {
-    array_push($this->handlers, $handler);
-    $this->handlers = array_unique($this->handlers);
-    
     if (!$this->cached) {
+      array_push($this->handlers, $handler);
+      $this->handlers = array_unique($this->handlers);
+      
       if (is_string($handler) && !class_exists($handler)) {
         throw new \Exception('Invalid method or class');
       } elseif (!is_string($handler) && !is_object($handler)) {
