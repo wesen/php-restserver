@@ -63,13 +63,6 @@ class UrlHandler {
     ksort($params);
     end($params);
     
-    $max = key($params);
-    for ($i = 0; $i < $max; $i++) {
-      if (!key_exists($i, $params)) {
-        $params[$i] = null;
-      }
-    }
-  
     return $params;
   }
 
