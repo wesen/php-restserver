@@ -32,6 +32,12 @@ class Method {
                       "url" => "");
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
+
+    if (strstr($this->url, "$")) {
+      $this->regex = preg_replace('/\\\\\$([\w\d]+)\.\.\./', '(?P<$1>.+)', str_replace('\.\.\.', '...', preg_quote($this->url)));
+      $this->regex = preg_replace('/\\\\\$([\w\d]+)/', '(?P<$1>[^\/]+)', $this->regex);
+      $this->regex = ":^".$this->regex."\$:";
+    }
   }
 
   public function handleCall($params, $paramMap) {
@@ -262,9 +268,7 @@ class Server {
           return array($call, array(), null);
         }
       } else {
-        $regex = preg_replace('/\\\\\$([\w\d]+)\.\.\./', '(?P<$1>.+)', str_replace('\.\.\.', '...', preg_quote($url)));
-        $regex = preg_replace('/\\\\\$([\w\d]+)/', '(?P<$1>[^\/]+)', $regex);
-        if (preg_match(":^$regex$:", urldecode($this->url), $matches)) {
+        if (preg_match($call->regex, urldecode($this->url), $matches)) {
           $params = array();
           $paramMap = array();
           if (isset($args['params'])) {
