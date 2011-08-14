@@ -157,9 +157,17 @@ class Server {
     $defaults = array('mode' => 'debug',
                       'realm' => 'Rest Server',
                       'cacheDir' => dirname(__FILE__)."/cache",
-                      'isCLI' => false);
+                      'isCLI' => false,
+                      'handlers' => array());
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
+    foreach ($this->handlers as $handler) {
+      if (is_array($handler)) {
+        $this->addHandler($handler[0], $handler[1]);
+      } else {
+        $this->addHandler($handler);
+      }
+    }
   }
 
   /**
