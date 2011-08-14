@@ -47,6 +47,16 @@ class SimpleHandler3 {
   }
 };
 
+class StaticHandler {
+  /**
+   * @url GET /simpletest
+   * @noAuth
+   **/
+  public static function simpletest() {
+    return 'static';
+  }
+};
+
 
 class TestRest extends UnitTestCase {
   public function setUp() {
@@ -87,6 +97,14 @@ class TestRest extends UnitTestCase {
     $this->assertEqual($result["data"], 1);
   }
 
+  public function testHandleStatic() {
+    $this->server->addClass('StaticHandler');
+    $result = $this->server->handle('simpletest');
+    $this->assertEqual($result["status"], "200");
+    $this->assertFalse($result["error"]);
+    $this->assertEqual($result["data"], 'static');
+  }
+  
   public function testHandleSimpleId() {
     $this->server->addClass('SimpleHandler2');
     $result = $this->server->handle('test/1');
