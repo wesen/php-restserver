@@ -161,6 +161,28 @@ class Server {
     }
   }
 
+  public function get($path) {
+    $result = $this->handle($path, array("method" => "GET"));
+    return $result["data"];
+  }
+
+  public function post($path, $data = null) {
+    $result = $this->handle($path, array("method" => "POST",
+                                         "data" => $data));
+    return $result["data"];
+  }
+
+  public function put($path, $data = null) {
+    $result = $this->handle($path, array("method" => "PUT",
+                                         "data" => $data));
+    return $result["data"];
+  }
+
+  public function delete($path) {
+    $result = $this->handle($path, array("method" => "DELETE"));
+    return $result["data"];
+  }
+  
   /**
    * Add a handler to the Rest Server.
    **/
