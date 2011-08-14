@@ -40,10 +40,60 @@ class UrlHandler {
       $this->regex = preg_replace('/\\\\\$([\w\d]+)\.\.\./', '(?P<$1>.+)', str_replace('\.\.\.', '...', preg_quote($this->url)));
       $this->regex = preg_replace('/\\\\\$([\w\d]+)/', '(?P<$1>[^\/]+)', $this->regex);
       $this->regex = ":^".$this->regex."\$:";
+    } else {
+      $this->regex = null;
     }
   }
 
-  public function handleCall($params, $paramMap) {
+  /**
+   * Generate the parameter for the method call, according to matches.
+   **/
+  public function genParams($matches) {
+    $params = array();
+    
+    foreach ($matches as $arg => $match) {
+      if (is_numeric($arg)) {
+        continue;
+      }
+      
+      if (isset($this->args[$arg])) {
+        $params[$this->args[$arg]] = $match;
+      }
+    }
+    ksort($params);
+    end($params);
+    
+    $max = key($params);
+    for ($i = 0; $i < $max; $i++) {
+      if (!key_exists($i, $params)) {
+        $params[$i] = null;
+      }
+    }
+  
+    return $params;
+  }
+  
+  public function matchPath($path, $data) {
+    $params = array();
+    $matches = array();
+    
+    if ($this->regex) {
+      if (!preg_match($this->regex, urldecode($path), $matches)) {
+        return null;
+      }
+    } else {
+      echo "path: $path, url: ".$this->url."\n";
+      if ($path != $this->url) {
+        return null;
+      }
+    }
+
+    return $this->genParams(array_merge(array('params' => $_GET,
+                                              'data' => $data),
+                                        $matches));
+  }
+  
+  public function handleCall($params) {
     /* static method */
     if ($this->isStatic) {
       if ($this->needsAuthorization && method_exists($this->class, 'authorize')) {
@@ -149,26 +199,26 @@ class Server {
     $defaults = array('throwException' => false);
     $options = array_merge($defaults, $options);
     
-    $this->url = $path;
     if (isset($options["method"])) {
-      $this->method = $options["method"];
+      $httpMethod = $options["method"];
     } else {
-      $this->method = $this->getMethod();
+      $httpMethod = $this->getMethod();
     }
 
+    $this->data = null;
     if (isset($options["data"])) {
       $this->data = $options["data"];
     } else {
-      if (($this->method == 'PUT') || ($this->method == 'POST')) {
+      if (($httpMethod == 'PUT') || ($httpMethod == 'POST')) {
         $this->data = $this->getData();
       }
     }
 
-    list ($obj, $params, $paramMap) = $this->findUrl();
+    list ($obj, $params) = $this->findUrl($httpMethod, $path);
 
     try {
       if ($obj) {
-        return $obj->handleCall($params, $paramMap);
+        return $obj->handleCall($params);
       } else {
         throw new Exception(404);
       }
@@ -247,64 +297,19 @@ class Server {
   /**
    * Find the url in the registered classes.
    **/
-  protected function findUrl() {
-    if (!isset($this->map[$this->method])) {
+  protected function findUrl($httpMethod, $path) {
+    if (!isset($this->map[$httpMethod])) {
       return null;
     }
     
-    $urls = $this->map[$this->method];
+    $urls = $this->map[$httpMethod];
 
-    foreach ($urls as $url => $call) {
-      $args = $call->args;
-
-      if (!strstr($url, '$')) {
-        /* no variable in url, no regexp needed */
-        if ($url == $this->url) {
-          if (isset($args['params'])) {
-            $params[$args['params']] = $_GET;
-          }
-          if (isset($args['data'])) {
-            $params = array_fill(0, $args['data'] + 1, null);
-            $params[$args['data']] = $this->data;
-            return array($call, $params, null);
-          }
-          return array($call, array(), null);
-        }
+    foreach ($urls as $url => $handler) {
+      $params = $handler->matchPath($path, $this->data);
+      if ($params !== null) {
+        return array($handler, $params);
       } else {
-        if (preg_match($call->regex, urldecode($this->url), $matches)) {
-          $params = array();
-          $paramMap = array();
-          if (isset($args['params'])) {
-            $params[$args['params']] = $_GET;
-          }
-
-          if (isset($args['data'])) {
-            $params[$args['data']] = $this->data;
-          }
-
-          foreach ($matches as $arg => $match) {
-            if (is_numeric($arg)) {
-              continue;
-            }
-            $paramMap[$arg] = $match;
-
-            if (isset($args[$arg])) {
-              $params[$args[$arg]] = $match;
-            }
-          }
-
-          ksort($params);
-          end($params);
-          $max = key($params);
-          for ($i = 0; $i < $max; $i++) {
-            if (!key_exists($i, $params)) {
-              $params[$i] = null;
-            }
-          }
-          ksort($params);
-          return array($call, $params, $paramMap);
-          return $result;
-        }
+        continue;
       }
     }
   }
@@ -343,12 +348,12 @@ class Server {
           }
 
           $handler = new UrlHandler(array("httpMethod" => $httpMethod,
-                                     "url" => $url,
-                                     "class" => $class,
-                                     "methodName" => $method->getName(),
-                                     "args" => $args,
-                                     "needsAuthorization" => !$noAuth,
-                                     "isStatic" => $method->isStatic()));
+                                          "url" => $url,
+                                          "class" => $class,
+                                          "methodName" => $method->getName(),
+                                          "args" => $args,
+                                          "needsAuthorization" => !$noAuth,
+                                          "isStatic" => $method->isStatic()));
           $this->map[$httpMethod][$url] = $handler;
         }
       }
