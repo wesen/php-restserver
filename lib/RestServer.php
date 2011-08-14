@@ -192,19 +192,18 @@ class Server {
       $httpMethod = $this->getMethod();
     }
 
-    $this->data = null;
     if (isset($options["data"])) {
-      $this->data = $options["data"];
+      $data = $options["data"];
+    } else if (($httpMethod == 'PUT') || ($httpMethod == 'POST')) {
+      $data = $this->getData();
     } else {
-      if (($httpMethod == 'PUT') || ($httpMethod == 'POST')) {
-        $this->data = $this->getData();
-      }
+      $data = null;
     }
 
     try {
       if (isset($this->map[$httpMethod])) {
         foreach ($this->map[$httpMethod] as $url => $handler) {
-          $matches = $handler->matchPath($path, $this->data);
+          $matches = $handler->matchPath($path, $data);
           if ($matches !== null) {
             $params = $handler->genParams($matches);
             return $handler->call($params);
