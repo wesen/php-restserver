@@ -13,13 +13,17 @@ namespace REST;
 
 require_once(dirname(__FILE__)."/helpers.php");
 
-class Method {
+/**
+ * Handler for a single REST method URL
+ **/
+class UrlHandler {
   public $httpMethod;
   public $class;
   public $methodName;
   public $args;
   public $needsAuthorization;
   public $isStatic;
+  public $url;
 
   public function __construct($options = array()) {
     $defaults = array("httpMethod" => null,
@@ -27,44 +31,82 @@ class Method {
                       "methodName" => null,
                       "args" => array(),
                       "needsAuthorization" => false,
-                      "isStatic" => false);
+                      "url" => "");
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
+
+    if (strstr($this->url, "$")) {
+      $this->regex = preg_replace('/\\\\\$([\w\d]+)\.\.\./', '(?P<$1>.+)', str_replace('\.\.\.', '...', preg_quote($this->url)));
+      $this->regex = preg_replace('/\\\\\$([\w\d]+)/', '(?P<$1>[^\/]+)', $this->regex);
+      $this->regex = ":^".$this->regex."\$:";
+    } else {
+      $this->regex = null;
+    }
   }
 
-  public function handleCall($params, $paramMap) {
-    /* static method */
-    if ($this->isStatic) {
-      if ($this->needsAuthorization && method_exists($this->class, 'authorize')) {
-        $class = $this->class;
-        if (!$class::authorize()) {
-          $this->unauthorized(false);
-          return;
-        }
+  /**
+   * Generate the parameter for the method call, according to matches.
+   **/
+  public function genParams($matches) {
+    $params = array();
+    
+    foreach ($matches as $arg => $match) {
+      if (is_numeric($arg)) {
+        continue;
+      }
+      
+      if (isset($this->args[$arg])) {
+        $params[$this->args[$arg]] = $match;
+      }
+    }
+    ksort($params);
+    end($params);
+    
+    return $params;
+  }
+
+  /**
+   * Check if the url handlers matches the given path.
+   *
+   * Returns null if it doesn't match, or the bound variables.
+   **/
+  public function matchPath($path, $data) {
+    $params = array();
+    $matches = array();
+    
+    if ($this->regex) {
+      if (!preg_match($this->regex, urldecode($path), $matches)) {
+        return null;
       }
     } else {
-      if (is_string($this->class)) {
-        $className = $this->class;
-        if (class_exists($className)) {
-          $obj = new $className();
-        } else {
-          throw new \Exception("Class $className does not exist");
-        }
-      } else {
-        $obj = $this->class;
+      if ($path != $this->url) {
+        return null;
       }
-        
-      $obj->server = $this;
+    }
 
-      if (method_exists($obj, 'init')) {
-        $obj->init();
-      }
-          
-      if ($this->needsAuthorization && method_exists($obj, 'authorize')) {
-        if (!$obj->authorize()) {
-          $this->unauthorized(false);
-          return;
-        }
+    return array_merge(array('__GET' => $_GET,
+                             '__data' => $data,
+                             '__requestPath' => $path,
+                             '__handler' => $this,
+                             '__urlMatches' => $matches),
+                       $matches);
+  }
+  
+  public function call($params) {
+    /* static method */
+    if (is_string($className = $this->class)) {
+      $obj = new $className();
+    } else {
+      $obj = $this->class;
+    }
+
+    if (method_exists($obj, 'init')) {
+      $obj->init();
+    }
+    
+    if ($this->needsAuthorization && method_exists($obj, 'authorize')) {
+      if (!$obj->authorize()) {
+        throw new Exception('401');
       }
     }
       
@@ -77,6 +119,36 @@ class Method {
   }    
 };
 
+/**
+ * Handler for a single REST method URL on a static method
+ **/
+class StaticUrlHandler extends UrlHandler {
+  public function call($params) {
+    if ($this->needsAuthorization && method_exists($this->class, 'authorize')) {
+      $class = $this->class;
+      if (!$class::authorize()) {
+        throw new Exception('401');
+      }
+    }
+    
+    $result = call_user_func_array(array($this->class, $this->methodName), $params);
+    if ($result != null) {
+      return array("status" => '200',
+                   "error" => false,
+                   "data" => $result);
+    }
+  }
+}
+
+/***************************************************************************
+ *
+ * Rest Server
+ *
+ ***************************************************************************/
+
+/**
+ * The REST server itself.
+ **/
 class Server {
   public $url;
   public $method;
@@ -87,7 +159,6 @@ class Server {
 
   /* hash from HTTP method -> list of url objects */
   var $map = array();
-  var $map2 = array();
   var $cached;
   
   /**
@@ -99,9 +170,17 @@ class Server {
     $defaults = array('mode' => 'debug',
                       'realm' => 'Rest Server',
                       'cacheDir' => dirname(__FILE__)."/cache",
-                      'isCLI' => false);
+                      'isCLI' => false,
+                      'handlers' => array());
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
+    foreach ($this->handlers as $handler) {
+      if (is_array($handler)) {
+        $this->addHandler($handler[0], $handler[1]);
+      } else {
+        $this->addHandler($handler);
+      }
+    }
   }
 
   /**
@@ -118,16 +197,6 @@ class Server {
   }
 
   /**
-   * Handle an unauthorized call by asking for HTTP authentication.
-   **/
-  public function unauthorized($ask = false) {
-    if ($ask && $this->isCLI) {
-      header("WWW-Authenticate: Basic realm=\"$this->realm\"");
-    }
-    throw new Exception(401, "You are not authorized to access this resource.");
-  }
-
-  /**
    * Handle an incoming HTTP request.
    *
    * Looks for the method by using findUrl(). Calls `init' on the
@@ -138,29 +207,33 @@ class Server {
     $defaults = array('throwException' => false);
     $options = array_merge($defaults, $options);
     
-    $this->url = $path;
     if (isset($options["method"])) {
-      $this->method = $options["method"];
+      $httpMethod = $options["method"];
     } else {
-      $this->method = $this->getMethod();
+      $httpMethod = $this->getMethod();
     }
 
     if (isset($options["data"])) {
-      $this->data = $options["data"];
+      $data = $options["data"];
+    } else if (($httpMethod == 'PUT') || ($httpMethod == 'POST')) {
+      $data = $this->getData();
     } else {
-      if (($this->method == 'PUT') || ($this->method == 'POST')) {
-        $this->data = $this->getData();
-      }
+      $data = null;
     }
 
-    list ($obj, $params, $paramMap) = $this->findUrl();
-
     try {
-      if ($obj) {
-        return $obj->handleCall($params, $paramMap);
-      } else {
-        throw new Exception(404);
+      if (isset($this->map[$httpMethod])) {
+        foreach ($this->map[$httpMethod] as $url => $handler) {
+          $matches = $handler->matchPath($path, $data);
+          if ($matches !== null) {
+            $params = $handler->genParams($matches);
+            return $handler->call($params);
+          }
+        }
       }
+
+      // not found, throw a 404
+      throw new Exception('404');
     } catch (Exception $e) {
       if ($options["throwException"]) {
         throw $e;
@@ -175,29 +248,29 @@ class Server {
   }
 
   /**
-   * Add a class to the Rest Server.
+   * Add a handler to the Rest Server.
    **/
-  public function addClass($class, $basePath = '') {
+  public function addHandler($handler, $basePath = '') {
     $this->loadCache();
 
     if (!$this->cached) {
-      if (is_string($class) && !class_exists($class)) {
+      if (is_string($handler) && !class_exists($handler)) {
         throw new \Exception('Invalid method or class');
-      } elseif (!is_string($class) && !is_object($class)) {
+      } elseif (!is_string($handler) && !is_object($handler)) {
         throw new \Exception('Invalid method or class; must be a classname or object');
       }
-
 
       // remove leading /
       if (substr($basePath, 0, 1) == '/') {
         $basePath = substr($basePath, 1);
       }
+
       // add trailing /
       if ($basePath && substr($basePath, -1) != '/') {
         $basePath .= '/';
       }
 
-      $this->generateMap($class, $basePath);
+      $this->generateMap($handler, $basePath);
     }
   }
 
@@ -234,83 +307,13 @@ class Server {
   }
 
   /**
-   * Find the url in the registered classes.
+   * Generate the url map for a specific handler.
    **/
-  protected function findUrl() {
-    if (!isset($this->map[$this->method])) {
-      return null;
-    }
-    
-    $urls = $this->map[$this->method];
-    if (!$urls) {
-      return null;
-    }
-
-    foreach ($urls as $url => $call) {
-      $args = $call->args;
-
-      if (!strstr($url, '$')) {
-        /* no variable in url, no regexp needed */
-        if ($url == $this->url) {
-          if (isset($args['params'])) {
-            $params[$args['params']] = $_GET;
-          }
-          if (isset($args['data'])) {
-            $params = array_fill(0, $args['data'] + 1, null);
-            $params[$args['data']] = $this->data;
-            return array($call, $params, null);
-          }
-          return array($call, array(), null);
-        }
-      } else {
-        $regex = preg_replace('/\\\\\$([\w\d]+)\.\.\./', '(?P<$1>.+)', str_replace('\.\.\.', '...', preg_quote($url)));
-        $regex = preg_replace('/\\\\\$([\w\d]+)/', '(?P<$1>[^\/]+)', $regex);
-        if (preg_match(":^$regex$:", urldecode($this->url), $matches)) {
-          $params = array();
-          $paramMap = array();
-          if (isset($args['params'])) {
-            $params[$args['params']] = $_GET;
-          }
-
-          if (isset($args['data'])) {
-            $params[$args['data']] = $this->data;
-          }
-
-          foreach ($matches as $arg => $match) {
-            if (is_numeric($arg)) {
-              continue;
-            }
-            $paramMap[$arg] = $match;
-
-            if (isset($args[$arg])) {
-              $params[$args[$arg]] = $match;
-            }
-          }
-
-          ksort($params);
-          end($params);
-          $max = key($params);
-          for ($i = 0; $i < $max; $i++) {
-            if (!key_exists($i, $params)) {
-              $params[$i] = null;
-            }
-          }
-          ksort($params);
-          return array($call, $params, $paramMap);
-          return $result;
-        }
-      }
-    }
-  }
-
-  /**
-   * Generate the url map for a specific class.
-   **/
-  protected function generateMap($class, $basePath) {
-    if (is_object($class)) {
-      $reflection = new \ReflectionObject($class);
-    } elseif (class_exists($class)) {
-      $reflection = new \ReflectionClass($class);
+  protected function generateMap($handler, $basePath) {
+    if (is_object($handler)) {
+      $reflection = new \ReflectionObject($handler);
+    } elseif (class_exists($handler)) {
+      $reflection = new \ReflectionClass($handler);
     }
 
     $methods = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
@@ -323,7 +326,7 @@ class Server {
                          $doc, $matches, PREG_SET_ORDER)) {
         $params = $method->getParameters();
 
-        foreach($matches as $match) {
+        foreach ($matches as $match) {
           $httpMethod = $match[1];
           $url = $basePath . $match[2];
           // remove trailing slash
@@ -335,19 +338,21 @@ class Server {
           foreach ($params as $param) {
             $args[$param->getName()] = $param->getPosition();
           }
-          $call = array($class, $method->getName());
-          $call[] = $args;
-          $call[] = null;
-          $call[] = $noAuth;
-          $call[] = $method->isStatic();
 
-          $method = new Method(array("httpMethod" => $httpMethod,
-                                     "class" => $class,
-                                     "methodName" => $method->getName(),
-                                     "args" => $args,
-                                     "needsAuthorization" => !$noAuth,
-                                     "isStatic" => $method->isStatic()));
-          $this->map[$httpMethod][$url] = $method;
+          $options = array("httpMethod" => $httpMethod,
+                           "url" => $url,
+                           "class" => $handler,
+                           "methodName" => $method->getName(),
+                           "args" => $args,
+                           "needsAuthorization" => !$noAuth);
+
+          if ($method->isStatic()) {
+            $urlHandler = new StaticUrlHandler($options);
+          } else {
+            $urlHandler = new UrlHandler($options);
+          }
+
+          $this->map[$httpMethod][$url] = $urlHandler;
         }
       }
     }
@@ -382,7 +387,7 @@ class Server {
   }
 
   /**
-   *
+   * Send data and HTTP headers
    **/
   public function sendData($data) {
     if (!$this->isCLI) {
