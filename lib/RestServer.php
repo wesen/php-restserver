@@ -20,6 +20,7 @@ class Method {
   public $args;
   public $needsAuthorization;
   public $isStatic;
+  public $url;
 
   public function __construct($options = array()) {
     $defaults = array("httpMethod" => null,
@@ -27,7 +28,8 @@ class Method {
                       "methodName" => null,
                       "args" => array(),
                       "needsAuthorization" => false,
-                      "isStatic" => false);
+                      "isStatic" => false,
+                      "url" => "");
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
   }
@@ -342,6 +344,7 @@ class Server {
           $call[] = $method->isStatic();
 
           $method = new Method(array("httpMethod" => $httpMethod,
+                                     "url" => $url,
                                      "class" => $class,
                                      "methodName" => $method->getName(),
                                      "args" => $args,
