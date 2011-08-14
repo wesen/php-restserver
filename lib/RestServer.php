@@ -49,24 +49,63 @@ class Server {
                       'handlers' => array());
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
-    foreach ($this->handlers as $handler) {
+
+    $handlers = $this->handlers; // copy because addHandler modified $this->handlers
+    foreach ($handlers as $handler) {
       if (is_array($handler)) {
         $this->addHandler($handler[0], $handler[1]);
       } else {
         $this->addHandler($handler);
       }
     }
+
+    $this->loadCache();
+  }
+
+  public function __destruct() {
+    $this->writeCache();
   }
 
   /**
-   * The destructor. Stores the url map in cache if the object is not cached.
+   * Stores the url map in cache if the object is not cached.
    **/
-  public function __destruct() {
+  protected function writeCache() {
     if ($this->mode == 'production' && !$this->cached) {
       if (function_exists('apc_store')) {
         apc_store('urlMap', $this->map);
       } else {
         file_put_contents($this->cacheDir . '/urlMap.cache', serialize($this->map));
+      }
+    }
+  }
+
+  /**
+   * Load the cache from file.
+   *
+   * In debug mode, remove the cache.
+   **/
+  protected function loadCache() {
+    if ($this->cached !== null) {
+      return;
+    }
+
+    $this->cached = false;
+
+    if ($this->mode == 'production') {
+      if (function_exists('apc_fetch')) {
+        $map = apc_fetch('urlMap');
+      } elseif (file_exists($this->cacheDir . '/urlMap.cache')) {
+        $map = unserialize(file_get_contents($this->cacheDir . '/urlMap.cache'));
+      }
+      if ($map && is_array($map)) {
+        $this->map = $map;
+        $this->cached = true;
+      }
+    } else {
+      if (function_exists('apc_delete')) {
+        apc_delete('urlMap');
+      } else {
+        @unlink($this->cacheDir . '/urlMap.cache');
       }
     }
   }
@@ -126,8 +165,9 @@ class Server {
    * Add a handler to the Rest Server.
    **/
   public function addHandler($handler, $basePath = '') {
-    $this->loadCache();
-
+    array_push($this->handlers, $handler);
+    $this->handlers = array_unique($this->handlers);
+    
     if (!$this->cached) {
       if (is_string($handler) && !class_exists($handler)) {
         throw new \Exception('Invalid method or class');
@@ -149,37 +189,6 @@ class Server {
     }
   }
 
-
-  /**
-   * Load the cache from file.
-   *
-   * In debug mode, remove the cache.
-   **/
-  protected function loadCache() {
-    if ($this->cached !== null) {
-      return;
-    }
-
-    $this->cached = false;
-
-    if ($this->mode == 'production') {
-      if (function_exists('apc_fetch')) {
-        $map = apc_fetch('urlMap');
-      } elseif (file_exists($this->cacheDir . '/urlMap.cache')) {
-        $map = unserialize(file_get_contents($this->cacheDir . '/urlMap.cache'));
-      }
-      if ($map && is_array($map)) {
-        $this->map = $map;
-        $this->cached = true;
-      }
-    } else {
-      if (function_exists('apc_delete')) {
-        apc_delete('urlMap');
-      } else {
-        @unlink($this->cacheDir . '/urlMap.cache');
-      }
-    }
-  }
 
   /**
    * Generate the url map for a specific handler.
@@ -232,6 +241,12 @@ class Server {
       }
     }
   }
+
+  /***************************************************************************
+   *
+   * HTTP stuff
+   *
+   ***************************************************************************/
 
   /**
    * Get the HTTP method for the current HTTP request, taking the
