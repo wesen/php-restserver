@@ -244,9 +244,6 @@ class Server {
     }
     
     $urls = $this->map[$this->method];
-    if (!$urls) {
-      return null;
-    }
 
     foreach ($urls as $url => $call) {
       $args = $call->args;
