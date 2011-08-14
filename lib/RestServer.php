@@ -123,9 +123,7 @@ class UrlHandler {
           
       if ($this->needsAuthorization && method_exists($obj, 'authorize')) {
         if (!$obj->authorize()) {
-          $this->unauthorized(false);
-          return;
-        }
+        throw new Exception('401');
       }
     }
       
@@ -175,16 +173,6 @@ class Server {
         file_put_contents($this->cacheDir . '/urlMap.cache', serialize($this->map));
       }
     }
-  }
-
-  /**
-   * Handle an unauthorized call by asking for HTTP authentication.
-   **/
-  public function unauthorized($ask = false) {
-    if ($ask && !$this->isCLI) {
-      header("WWW-Authenticate: Basic realm=\"$this->realm\"");
-    }
-    throw new Exception(401, "You are not authorized to access this resource.");
   }
 
   /**
