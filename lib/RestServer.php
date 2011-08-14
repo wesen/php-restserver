@@ -227,15 +227,15 @@ class Server {
   }
 
   /**
-   * Add a class to the Rest Server.
+   * Add a handler to the Rest Server.
    **/
-  public function addClass($class, $basePath = '') {
+  public function addHandler($handler, $basePath = '') {
     $this->loadCache();
 
     if (!$this->cached) {
-      if (is_string($class) && !class_exists($class)) {
+      if (is_string($handler) && !class_exists($handler)) {
         throw new \Exception('Invalid method or class');
-      } elseif (!is_string($class) && !is_object($class)) {
+      } elseif (!is_string($handler) && !is_object($handler)) {
         throw new \Exception('Invalid method or class; must be a classname or object');
       }
 
@@ -243,12 +243,13 @@ class Server {
       if (substr($basePath, 0, 1) == '/') {
         $basePath = substr($basePath, 1);
       }
+
       // add trailing /
       if ($basePath && substr($basePath, -1) != '/') {
         $basePath .= '/';
       }
 
-      $this->generateMap($class, $basePath);
+      $this->generateMap($handler, $basePath);
     }
   }
 
@@ -285,13 +286,13 @@ class Server {
   }
 
   /**
-   * Generate the url map for a specific class.
+   * Generate the url map for a specific handler.
    **/
-  protected function generateMap($class, $basePath) {
-    if (is_object($class)) {
-      $reflection = new \ReflectionObject($class);
-    } elseif (class_exists($class)) {
-      $reflection = new \ReflectionClass($class);
+  protected function generateMap($handler, $basePath) {
+    if (is_object($handler)) {
+      $reflection = new \ReflectionObject($handler);
+    } elseif (class_exists($handler)) {
+      $reflection = new \ReflectionClass($handler);
     }
 
     $methods = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
@@ -317,14 +318,20 @@ class Server {
             $args[$param->getName()] = $param->getPosition();
           }
 
-          $handler = new UrlHandler(array("httpMethod" => $httpMethod,
+          $options = array("httpMethod" => $httpMethod,
                                           "url" => $url,
-                                          "class" => $class,
+                           "class" => $handler,
                                           "methodName" => $method->getName(),
                                           "args" => $args,
-                                          "needsAuthorization" => !$noAuth,
-                                          "isStatic" => $method->isStatic()));
-          $this->map[$httpMethod][$url] = $handler;
+                           "needsAuthorization" => !$noAuth);
+
+          if ($method->isStatic()) {
+            $urlHandler = new StaticUrlHandler($options);
+          } else {
+            $urlHandler = new UrlHandler($options);
+          }
+
+          $this->map[$httpMethod][$url] = $urlHandler;
         }
       }
     }
