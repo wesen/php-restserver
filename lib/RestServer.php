@@ -72,7 +72,12 @@ class UrlHandler {
   
     return $params;
   }
-  
+
+  /**
+   * Check if the url handlers matches the given path.
+   *
+   * Returns null if it doesn't match, or an array of bound parameters for the method call.
+   **/
   public function matchPath($path, $data) {
     $params = array();
     $matches = array();
@@ -82,7 +87,6 @@ class UrlHandler {
         return null;
       }
     } else {
-      echo "path: $path, url: ".$this->url."\n";
       if ($path != $this->url) {
         return null;
       }
@@ -103,6 +107,8 @@ class UrlHandler {
           return;
         }
       }
+
+      $obj = $this->class;
     } else {
       if (is_string($this->class)) {
         $className = $this->class;
@@ -115,8 +121,6 @@ class UrlHandler {
         $obj = $this->class;
       }
         
-      $obj->server = $this;
-
       if (method_exists($obj, 'init')) {
         $obj->init();
       }
