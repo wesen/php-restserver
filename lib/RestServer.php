@@ -14,7 +14,7 @@ namespace REST;
 require_once(dirname(__FILE__)."/helpers.php");
 
 /**
- * Object that describes a single REST method url.
+ * Handler for a single REST method URL
  **/
 class UrlHandler {
   public $httpMethod;
@@ -31,7 +31,6 @@ class UrlHandler {
                       "methodName" => null,
                       "args" => array(),
                       "needsAuthorization" => false,
-                      "isStatic" => false,
                       "url" => "");
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
@@ -95,34 +94,18 @@ class UrlHandler {
   
   public function call($params) {
     /* static method */
-    if ($this->isStatic) {
-      if ($this->needsAuthorization && method_exists($this->class, 'authorize')) {
-        $class = $this->class;
-        if (!$class::authorize()) {
-          $this->unauthorized(false);
-          return;
-        }
-      }
-
-      $obj = $this->class;
+    if (is_string($className = $this->class)) {
+      $obj = new $className();
     } else {
-      if (is_string($this->class)) {
-        $className = $this->class;
-        if (class_exists($className)) {
-          $obj = new $className();
-        } else {
-          throw new \Exception("Class $className does not exist");
-        }
-      } else {
-        $obj = $this->class;
-      }
-        
-      if (method_exists($obj, 'init')) {
-        $obj->init();
-      }
-          
-      if ($this->needsAuthorization && method_exists($obj, 'authorize')) {
-        if (!$obj->authorize()) {
+      $obj = $this->class;
+    }
+
+    if (method_exists($obj, 'init')) {
+      $obj->init();
+    }
+    
+    if ($this->needsAuthorization && method_exists($obj, 'authorize')) {
+      if (!$obj->authorize()) {
         throw new Exception('401');
       }
     }
@@ -136,6 +119,36 @@ class UrlHandler {
   }    
 };
 
+/**
+ * Handler for a single REST method URL on a static method
+ **/
+class StaticUrlHandler extends UrlHandler {
+  public function call($params) {
+    if ($this->needsAuthorization && method_exists($this->class, 'authorize')) {
+      $class = $this->class;
+      if (!$class::authorize()) {
+        throw new Exception('401');
+      }
+    }
+    
+    $result = call_user_func_array(array($this->class, $this->methodName), $params);
+    if ($result != null) {
+      return array("status" => '200',
+                   "error" => false,
+                   "data" => $result);
+    }
+  }
+}
+
+/***************************************************************************
+ *
+ * Rest Server
+ *
+ ***************************************************************************/
+
+/**
+ * The REST server itself.
+ **/
 class Server {
   public $url;
   public $method;
@@ -313,7 +326,7 @@ class Server {
                          $doc, $matches, PREG_SET_ORDER)) {
         $params = $method->getParameters();
 
-        foreach($matches as $match) {
+        foreach ($matches as $match) {
           $httpMethod = $match[1];
           $url = $basePath . $match[2];
           // remove trailing slash
@@ -327,10 +340,10 @@ class Server {
           }
 
           $options = array("httpMethod" => $httpMethod,
-                                          "url" => $url,
+                           "url" => $url,
                            "class" => $handler,
-                                          "methodName" => $method->getName(),
-                                          "args" => $args,
+                           "methodName" => $method->getName(),
+                           "args" => $args,
                            "needsAuthorization" => !$noAuth);
 
           if ($method->isStatic()) {
@@ -374,7 +387,7 @@ class Server {
   }
 
   /**
-   *
+   * Send data and HTTP headers
    **/
   public function sendData($data) {
     if (!$this->isCLI) {
