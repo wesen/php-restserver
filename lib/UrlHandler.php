@@ -23,6 +23,7 @@ class UrlHandler {
   public $needsAuthorization;
   public $isStatic;
   public $url;
+  public $cache;
 
   public function __construct($options = array()) {
     $defaults = array("httpMethod" => null,
@@ -30,7 +31,8 @@ class UrlHandler {
                       "methodName" => null,
                       "args" => array(),
                       "needsAuthorization" => false,
-                      "url" => "");
+                      "url" => "",
+                      "cache" => false);
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
 
@@ -53,7 +55,7 @@ class UrlHandler {
       if (is_numeric($arg)) {
         continue;
       }
-      
+
       if (isset($this->args[$arg])) {
         $params[$this->args[$arg]] = $match;
       }
