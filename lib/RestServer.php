@@ -227,6 +227,11 @@ class Server {
     foreach ($methods as $method) {
       $doc = $method->getDocComment();
       $noAuth = strpos($doc, '@noAuth') !== false;
+      if (preg_match('/@cache (\d+)/', $doc, $matches)) {
+        $cache = $matches[1];
+      } else {
+        $cache = false;
+      }
 
       if (preg_match_all('/@url[ \t]+(GET|POST|PUT|DELETE|HEAD|OPTIONS)[ \t]+\/?(\S*)/s',
                          $doc, $matches, PREG_SET_ORDER)) {
@@ -250,8 +255,8 @@ class Server {
                            "class" => $handler,
                            "methodName" => $method->getName(),
                            "args" => $args,
-                           "needsAuthorization" => !$noAuth);
-
+                           "needsAuthorization" => !$noAuth,
+                           "cache" => $cache);
           if ($method->isStatic()) {
             $urlHandler = new StaticUrlHandler($options);
           } else {
