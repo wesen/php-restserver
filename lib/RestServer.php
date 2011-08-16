@@ -137,11 +137,48 @@ class Server {
 
     try {
       if (isset($this->map[$httpMethod])) {
+        $res = null;
+
         foreach ($this->map[$httpMethod] as $url => $handler) {
           $matches = $handler->matchPath($path, $data);
           if ($matches !== null) {
+            $shouldCache = false;
+
+            /* check caching */
+            if ($handler->cache &&
+                ($httpMethod == "GET") &&
+                ($data == null) &&
+                function_exists('apc_fetch')) {
+              $shouldCache = true;
+              $success = false;
+              $res = apc_fetch("REST/path $path", $success);
+              if ($success) {
+                $info = apc_key_info("REST/path $path");
+                if ($info && !$this->isCLI) {
+                  header('Cache-Control: max-age='.$info["ttl"]);
+                  header('Last-Modified: '.gmdate('D, d M Y H:i:s', $info["creation_time"]));
+                  header('Expires: '.gmdate('"D, d M Y H:i:s', $info["expires"]));
+                }
+                
+                return $res;
+              }
+            }
+
+            /* normal handling */
             $params = $handler->genParams($matches);
-            return $handler->call($params);
+            $res = $handler->call($params);
+            if ($shouldCache && function_exists('apc_store')) {
+              apc_store("REST/path $path", $res, $handler->cache);
+              header('Cache-Control: max-age='.$handler->cache);
+              header('Last-Modified: '.gmdate('D, d M Y H:i:s', time()));
+              header('Expires: '.gmdate('"D, d M Y H:i:s', time() + $handler->cache));
+            } else {
+              if (!$this->isCLI) {
+                header("Cache-Control: no-cache, must-revalidate");
+                header("Expires: 0");
+              }
+            }
+            return $res;
           }
         }
       }
@@ -227,6 +264,11 @@ class Server {
     foreach ($methods as $method) {
       $doc = $method->getDocComment();
       $noAuth = strpos($doc, '@noAuth') !== false;
+      if (preg_match('/@cache (\d+)/', $doc, $matches)) {
+        $cache = $matches[1];
+      } else {
+        $cache = false;
+      }
 
       if (preg_match_all('/@url[ \t]+(GET|POST|PUT|DELETE|HEAD|OPTIONS)[ \t]+\/?(\S*)/s',
                          $doc, $matches, PREG_SET_ORDER)) {
@@ -250,8 +292,8 @@ class Server {
                            "class" => $handler,
                            "methodName" => $method->getName(),
                            "args" => $args,
-                           "needsAuthorization" => !$noAuth);
-
+                           "needsAuthorization" => !$noAuth,
+                           "cache" => $cache);
           if ($method->isStatic()) {
             $urlHandler = new StaticUrlHandler($options);
           } else {
@@ -303,13 +345,7 @@ class Server {
    **/
   public function sendResult($result) {
     if (!$this->isCLI) {
-      header("Cache-Control: no-cache, must-revalidate");
-      header("Expires: 0");
       header("Content-Type: application/json");
-    }
-
-    
-    if (!$this->isCLI) {
       $status = $result["status"];
       $code = $this->codes[strval($status)];
       header("{$_SERVER['SERVER_PROTOCOL']} $status $code");
