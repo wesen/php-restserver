@@ -71,7 +71,7 @@ class UrlHandler {
    *
    * Returns null if it doesn't match, or the bound variables.
    **/
-  public function matchPath($path, $data) {
+  public function matchPath($path, $data, $params = array()) {
     $params = array();
     $matches = array();
     
@@ -85,7 +85,7 @@ class UrlHandler {
       }
     }
 
-    return array_merge(array('__GET' => $_GET,
+    return array_merge(array('__GET' => $params,
                              '__data' => $data,
                              '__requestPath' => $path,
                              '__handler' => $this,

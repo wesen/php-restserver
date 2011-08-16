@@ -135,12 +135,18 @@ class Server {
       $data = null;
     }
 
+    if (isset($options["params"])) {
+      $params = $options["params"];
+    } else {
+      $params = $_GET;
+    }
+
     try {
       if (isset($this->map[$httpMethod])) {
         $res = null;
 
         foreach ($this->map[$httpMethod] as $url => $handler) {
-          $matches = $handler->matchPath($path, $data);
+          $matches = $handler->matchPath($path, $data, $params);
           if ($matches !== null) {
             $shouldCache = false;
 
@@ -198,25 +204,29 @@ class Server {
     }
   }
 
-  public function get($path) {
-    $result = $this->handle($path, array("method" => "GET"));
+  public function get($path, $params = array()) {
+    $result = $this->handle($path, array("method" => "GET",
+                                         "params" => $params));
     return $result["data"];
   }
 
-  public function post($path, $data = null) {
+  public function post($path, $data = null, $params = array()) {
     $result = $this->handle($path, array("method" => "POST",
-                                         "data" => $data));
+                                         "data" => $data,
+                                         "params" => $params));
     return $result["data"];
   }
 
-  public function put($path, $data = null) {
+  public function put($path, $data = null, $params = array()) {
     $result = $this->handle($path, array("method" => "PUT",
-                                         "data" => $data));
+                                         "data" => $data,
+                                         "params" => $params));
     return $result["data"];
   }
 
-  public function delete($path) {
-    $result = $this->handle($path, array("method" => "DELETE"));
+  public function delete($path, $params = array()) {
+    $result = $this->handle($path, array("method" => "DELETE",
+                                         "params" => $params));
     return $result["data"];
   }
   
