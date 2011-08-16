@@ -47,4 +47,34 @@ function debug_log($str, $level = "NOTICE") {
   }
 }
 
+/**
+ * Return a key's expiration time.
+ *
+ * @param string $key The name of the key.
+ *
+ * @return mixed Returns false when no keys are cached or when the key
+ *               does not exist. Returns int 0 when the key never expires
+ *               (ttl = 0) or an integer (unix timestamp) otherwise.
+ */
+function apc_key_info($key) {
+  if (function_exists('apc_cache_info')) {
+    $cache = apc_cache_info('user');
+    if (empty($cache['cache_list'])) {
+      return false;
+    }
+    foreach ($cache['cache_list'] as $entry) {
+      if ($entry['info'] != $key) {
+        continue;
+      }
+      if ($entry['ttl'] == 0) {
+        return 0;
+      }
+      return array("expires" => $entry['creation_time']+$entry['ttl'],
+                   "creation_time" => $entry['creation_time'],
+                   "ttl" => $entry['ttl']);
+    }
+    return false;
+  }
+}
+
 ?>
