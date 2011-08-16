@@ -46,7 +46,8 @@ class Server {
                       'realm' => 'Rest Server',
                       'cacheDir' => dirname(__FILE__)."/cache",
                       'isCLI' => false,
-                      'handlers' => array());
+                      'handlers' => array(),
+                      "enableCache" => false);
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
 
@@ -110,6 +111,49 @@ class Server {
     }
   }
 
+  public function handleCached($path, $handler, $httpMethod, $data) {
+    $shouldCache = false;
+    $success = false;
+    $res = null;
+
+    if (!$this->enableCache) {
+      fb("enablecache disabled");
+      return array($success, $res, $shouldCache);
+    }
+    
+    if ($handler->cache &&
+        ($httpMethod == "GET") &&
+        ($data == null) &&
+        function_exists('apc_fetch')) {
+      $shouldCache = true;
+
+      $res = apc_fetch("REST/path $path", $success);
+      if ($success) {
+        $info = apc_key_info("REST/path $path");
+        if ($info && !$this->isCLI) {
+          header('Cache-Control: max-age='.$info["ttl"]);
+          header('Last-Modified: '.gmdate('D, d M Y H:i:s', $info["creation_time"]));
+          header('Expires: '.gmdate('"D, d M Y H:i:s', $info["expires"]));
+        }
+      }
+    }
+                
+    return array($success, $res, $shouldCache);
+  }
+
+  public function cacheResult($path, $res, $ttl) {
+    if (!$this->enableCache) {
+      return;
+    }
+    
+    if (function_exists('apc_store')) {
+      apc_store("REST/path $path", $res, $ttl);
+      header('Cache-Control: max-age='.$ttl);
+      header('Last-Modified: '.gmdate('D, d M Y H:i:s', time()));
+      header('Expires: '.gmdate('"D, d M Y H:i:s', time() + $ttl));
+    }
+  }
+
   /**
    * Handle an incoming HTTP request.
    *
@@ -150,35 +194,19 @@ class Server {
           if ($matches !== null) {
             $shouldCache = false;
 
-            /* check caching */
-            if ($handler->cache &&
-                ($httpMethod == "GET") &&
-                ($data == null) &&
-                function_exists('apc_fetch')) {
-              $shouldCache = true;
-              $success = false;
-              $res = apc_fetch("REST/path $path", $success);
-              if ($success) {
-                $info = apc_key_info("REST/path $path");
-                if ($info && !$this->isCLI) {
-                  header('Cache-Control: max-age='.$info["ttl"]);
-                  header('Last-Modified: '.gmdate('D, d M Y H:i:s', $info["creation_time"]));
-                  header('Expires: '.gmdate('"D, d M Y H:i:s', $info["expires"]));
-                }
-                
-                return $res;
-              }
+            list ($wasCached, $result, $shouldCache) = $this->handleCached($path, $handler, $httpMethod, $data);
+            if ($wasCached) {
+              return $result;
             }
+
+            /* check caching */
 
             /* normal handling */
             $params = $handler->genParams($matches);
             $res = $handler->call($params);
 
-            if ($shouldCache && function_exists('apc_store')) {
-              apc_store("REST/path $path", $res, $handler->cache);
-              header('Cache-Control: max-age='.$handler->cache);
-              header('Last-Modified: '.gmdate('D, d M Y H:i:s', time()));
-              header('Expires: '.gmdate('"D, d M Y H:i:s', time() + $handler->cache));
+            if ($shouldCache) {
+              $this->cacheResult($path, $res, $handler->cache);
             } else {
               if (!$this->isCLI) {
                 header("Cache-Control: no-cache, must-revalidate");
