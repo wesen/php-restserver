@@ -26,11 +26,9 @@ class StaticUrlHandler extends UrlHandler {
     }
     
     $result = call_user_func_array(array($this->class, $this->methodName), $params);
-    if ($result != null) {
-      return array("status" => '200',
-                   "error" => false,
-                   "data" => $result);
-    }
+    return array("status" => '200',
+                 "error" => false,
+                 "data" => $result);
   }
 }
 
