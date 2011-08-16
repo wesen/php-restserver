@@ -47,6 +47,23 @@ function debug_log($str, $level = "NOTICE") {
   }
 }
 
+/* Get the value of $array[$key] if it exists, else $default. */
+function array_get($array, $key, $default = null) {
+  if (is_object($array)) {
+    if (isset($array->$key)) {
+      return $array->$key;
+    } else {
+      return $default;
+    }
+  }
+  
+  if (array_key_exists($key, $array) && $array[$key]) {
+    return $array[$key];
+  } else {
+    return $default;
+  }
+}
+
 /**
  * Return a key's expiration time.
  *

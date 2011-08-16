@@ -173,6 +173,7 @@ class Server {
             /* normal handling */
             $params = $handler->genParams($matches);
             $res = $handler->call($params);
+
             if ($shouldCache && function_exists('apc_store')) {
               apc_store("REST/path $path", $res, $handler->cache);
               header('Cache-Control: max-age='.$handler->cache);
@@ -356,8 +357,8 @@ class Server {
   public function sendResult($result) {
     if (!$this->isCLI) {
       header("Content-Type: application/json");
-      $status = $result["status"];
-      $code = $this->codes[strval($status)];
+      $status = array_get($result, "status", 500);
+      $code = array_get($this->codes, strval($status), "Server Error");
       header("{$_SERVER['SERVER_PROTOCOL']} $status $code");
     }
 
