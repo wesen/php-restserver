@@ -106,8 +106,8 @@ class GetParamsHandler {
    * @url GET /get
    * @noAuth
    **/
-  function get_test($__GET) {
-    return $__GET;
+  function get_test($__params) {
+    return $__params;
   }
 }
 
@@ -131,6 +131,24 @@ class UrlMatchesHandler {
   }
 }
 
+
+class AllMethodsHandler {
+  /**
+   * @url GET/get/$p
+   * @noAuth
+   **/
+  function handleGet($p, $__params = array()) {
+    return array("p" => $p,
+                 "params" => $__params);
+  }
+
+  /**
+   * @url GET/get/$p
+   * @noAuth
+   **/
+  function handlePost($p, $__params = array(), $__data = array()) {
+  }
+}
 
 class TestRest extends UnitTestCase {
   public function setUp() {
@@ -295,6 +313,11 @@ class TestRest extends UnitTestCase {
     $this->assertEqual($result["status"], "200");
     //    var_dump($result);
     // XXX
+  }
+
+  public function testGET() {
+    $this->server->addHandler('AllMethodsHandler');
+    
   }
 }
 

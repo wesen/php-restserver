@@ -4,7 +4,10 @@ X replace url arrays with url objects to make code more readable
 X catch exceptions in handler
 X refactor caching
 
+- test authorization
+- test caching
+- extract documentation 
+
 - add function to keep out certain fields ??
 - mock header and body for simpletest
 - mock http method for simpletest
-- add expire to caching
