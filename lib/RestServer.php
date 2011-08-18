@@ -48,9 +48,14 @@ class Server {
                       'isCLI' => false,
                       'handlers' => array(),
                       "enableCache" => false);
+    
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
 
+    if (defined('STDIN')) {
+      $this->isCLI = true;
+    }
+    
     $this->loadCache();
     
     $handlers = $this->handlers; // copy because addHandler modified $this->handlers
@@ -117,7 +122,6 @@ class Server {
     $res = null;
 
     if (!$this->enableCache) {
-      fb("enablecache disabled");
       return array($success, $res, $shouldCache);
     }
     
@@ -203,8 +207,9 @@ class Server {
 
             /* normal handling */
             $params = $handler->genParams($matches);
-            $res = $handler->call($params);
 
+            $res = $handler->call($params);
+            
             if ($shouldCache) {
               $this->cacheResult($path, $res, $handler->cache);
             } else {
@@ -220,6 +225,17 @@ class Server {
 
       // not found, throw a 404
       throw new Exception('404');
+    } catch (\Exception $e) {
+      if ($this->mode == "debug") {
+        throw $e;
+      } else {
+        $e = new Exception('500');
+        $message = $this->codes[$e->getCode()]. ($e->getMessage() && $this->mode == 'debug' ? ': ' . $e->getMessage() : '');
+
+        return array("status" => $e->getCode(),
+                     "error" => true,
+                     "data" => $message);
+      }
     } catch (Exception $e) {
       if ($options["throwException"]) {
         throw $e;
