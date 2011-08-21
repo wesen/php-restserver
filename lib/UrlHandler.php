@@ -50,14 +50,12 @@ class UrlHandler {
    **/
   public function genParams($matches) {
     $params = array();
-    
-    foreach ($matches as $arg => $match) {
-      if (is_numeric($arg)) {
-        continue;
-      }
 
-      if (isset($this->args[$arg])) {
-        $params[$this->args[$arg]] = $match;
+    foreach ($this->args as $arg => $idx) {
+      if (isset($matches[$arg])) {
+        $params[$idx] = $matches[$arg];
+      } else {
+        $params[$idx] = null;
       }
     }
     ksort($params);
