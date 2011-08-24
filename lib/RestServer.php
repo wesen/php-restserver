@@ -225,21 +225,21 @@ class Server {
 
       // not found, throw a 404
       throw new Exception('404');
-    } catch (\Exception $e) {
-      if ($this->mode == "debug") {
+    } catch (Exception $e) {
+      if ($options["throwException"]) {
         throw $e;
       } else {
-        $e = new Exception('500');
         $message = $this->codes[$e->getCode()]. ($e->getMessage() && $this->mode == 'debug' ? ': ' . $e->getMessage() : '');
 
         return array("status" => $e->getCode(),
                      "error" => true,
                      "data" => $message);
       }
-    } catch (Exception $e) {
-      if ($options["throwException"]) {
+    } catch (\Exception $e) {
+      if ($this->mode == "debug") {
         throw $e;
       } else {
+        $e = new Exception('500');
         $message = $this->codes[$e->getCode()]. ($e->getMessage() && $this->mode == 'debug' ? ': ' . $e->getMessage() : '');
 
         return array("status" => $e->getCode(),
