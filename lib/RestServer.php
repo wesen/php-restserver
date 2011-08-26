@@ -3,7 +3,7 @@
 /*
  * Rest Server
  *
- * (c) August 2011 
+ * (c) August 2011
  *
  * Author: Manuel Odendahl - wesen@ruinwesen.com
  * Author: Jacob Wright
@@ -35,7 +35,7 @@ class Server {
   /* hash from HTTP method -> list of url objects */
   var $map = array();
   var $cached;
-  
+
   /**
    * The constructor.
    *
@@ -48,16 +48,16 @@ class Server {
                       'isCLI' => false,
                       'handlers' => array(),
                       "enableCache" => false);
-    
+
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
 
     if (defined('STDIN')) {
       $this->isCLI = true;
     }
-    
+
     $this->loadCache();
-    
+
     $handlers = $this->handlers; // copy because addHandler modified $this->handlers
     foreach ($handlers as $handler) {
       if (is_array($handler)) {
@@ -124,7 +124,7 @@ class Server {
     if (!$this->enableCache) {
       return array($success, $res, $shouldCache);
     }
-    
+
     if ($handler->cache &&
         ($httpMethod == "GET") &&
         ($data == null) &&
@@ -141,7 +141,7 @@ class Server {
         }
       }
     }
-                
+
     return array($success, $res, $shouldCache);
   }
 
@@ -149,7 +149,7 @@ class Server {
     if (!$this->enableCache) {
       return;
     }
-    
+
     if (function_exists('apc_store')) {
       apc_store("REST/path $path", $res, $ttl);
       header('Cache-Control: max-age='.$ttl);
@@ -168,7 +168,7 @@ class Server {
   public function handle($path, $options = array()) {
     $defaults = array('throwException' => false);
     $options = array_merge($defaults, $options);
-    
+
     if (isset($options["method"])) {
       $httpMethod = $options["method"];
     } else {
@@ -209,7 +209,7 @@ class Server {
             $params = $handler->genParams($matches);
 
             $res = $handler->call($params);
-            
+
             if ($shouldCache) {
               $this->cacheResult($path, $res, $handler->cache);
             } else {
@@ -274,7 +274,7 @@ class Server {
                                          "params" => $params));
     return $result["data"];
   }
-  
+
   /**
    * Add a handler to the Rest Server.
    **/
@@ -282,7 +282,7 @@ class Server {
     if (!$this->cached) {
       array_push($this->handlers, $handler);
       $this->handlers = array_unique($this->handlers);
-      
+
       if (is_string($handler) && !class_exists($handler)) {
         throw new \Exception('Invalid method or class');
       } elseif (!is_string($handler) && !is_object($handler)) {
