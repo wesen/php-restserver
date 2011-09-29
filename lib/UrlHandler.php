@@ -60,7 +60,7 @@ class UrlHandler {
     }
     ksort($params);
     end($params);
-    
+
     return $params;
   }
 
@@ -71,7 +71,7 @@ class UrlHandler {
    **/
   public function matchPath($path, $data, $params = array()) {
     $matches = array();
-    
+
     if ($this->regex) {
       if (!preg_match($this->regex, urldecode($path), $matches)) {
         return null;
@@ -89,7 +89,7 @@ class UrlHandler {
                              '__urlMatches' => $matches),
                        $matches);
   }
-  
+
   public function call($params) {
     /* static method */
     if (is_string($className = $this->class)) {
@@ -101,18 +101,18 @@ class UrlHandler {
     if (method_exists($obj, 'init')) {
       $obj->init();
     }
-    
+
     if ($this->needsAuthorization && method_exists($obj, 'authorize')) {
       if (!$obj->authorize()) {
         throw new Exception('401');
       }
     }
-      
+
     $result = call_user_func_array(array($obj, $this->methodName), $params);
     return array("status" => '200',
                  "error" => false,
                  "data" => $result);
-  }    
+  }
 };
 
 ?>

@@ -152,9 +152,12 @@ class Server {
 
     if (function_exists('apc_store')) {
       apc_store("REST/path $path", $res, $ttl);
-      header('Cache-Control: max-age='.$ttl);
-      header('Last-Modified: '.gmdate('D, d M Y H:i:s', time()));
-      header('Expires: '.gmdate('"D, d M Y H:i:s', time() + $ttl));
+      $res = apc_fetch("REST/path $path");
+      if (!$this->isCLI) {
+        header('Cache-Control: max-age='.$ttl);
+        header('Last-Modified: '.gmdate('D, d M Y H:i:s', time()));
+        header('Expires: '.gmdate('"D, d M Y H:i:s', time() + $ttl));
+      }
     }
   }
 
