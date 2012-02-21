@@ -116,7 +116,7 @@ class Server {
     }
   }
 
-  public function handleCached($path, $handler, $httpMethod, $data) {
+  public function handleCached($path, $handler, $httpMethod, $data, $params) {
     $shouldCache = false;
     $success = false;
     $res = null;
@@ -127,13 +127,16 @@ class Server {
 
     if ($handler->cache &&
         ($httpMethod == "GET") &&
+        /* leave uncached when parameters are passed (for now) */
         ($data == null) &&
+        ($params == null) &&
         function_exists('apc_fetch')) {
       $shouldCache = true;
 
-      $res = apc_fetch("REST/path $path", $success);
+      $key = $this->makeCacheKey($path, $data, $params);
+      $res = apc_fetch($key, $success);
       if ($success) {
-        $info = apc_key_info("REST/path $path");
+        $info = apc_key_info($key);
         if ($info && !$this->isCLI) {
           header('Cache-Control: max-age='.$info["ttl"]);
           header('Last-Modified: '.gmdate('D, d M Y H:i:s', $info["creation_time"]));
@@ -145,14 +148,19 @@ class Server {
     return array($success, $res, $shouldCache);
   }
 
-  public function cacheResult($path, $res, $ttl) {
+  public function makeCacheKey($path, $data, $params) {
+    return "REST/path ".$path." data ".print_r($data, true)." params ".print_r($params, true);
+  }
+
+  public function cacheResult($path, $data, $params, $res, $ttl) {
     if (!$this->enableCache) {
       return;
     }
 
     if (function_exists('apc_store')) {
-      apc_store("REST/path $path", $res, $ttl);
-      $res = apc_fetch("REST/path $path");
+      $key = $this->makeCacheKey($path, $data, $params);
+      apc_store($key, $res, $ttl);
+      $res = apc_fetch($key);
       if (!$this->isCLI) {
         header('Cache-Control: max-age='.$ttl);
         header('Last-Modified: '.gmdate('D, d M Y H:i:s', time()));
@@ -201,7 +209,7 @@ class Server {
           if ($matches !== null) {
             $shouldCache = false;
 
-            list ($wasCached, $result, $shouldCache) = $this->handleCached($path, $handler, $httpMethod, $data);
+            list ($wasCached, $result, $shouldCache) = $this->handleCached($path, $handler, $httpMethod, $data, $params);
             if ($wasCached) {
               return $result;
             }
@@ -214,7 +222,7 @@ class Server {
             $res = $handler->call($params);
 
             if ($shouldCache) {
-              $this->cacheResult($path, $res, $handler->cache);
+              $this->cacheResult($path, $data, $params, $res, $handler->cache);
             } else {
               if (!$this->isCLI) {
                 header("Cache-Control: no-cache, must-revalidate");
