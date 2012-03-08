@@ -197,7 +197,7 @@ class Server {
     if (isset($options["params"])) {
       $params = $options["params"];
     } else {
-      $params = $_GET;
+      $params = array_merge($_GET, $_POST);
     }
 
     try {
