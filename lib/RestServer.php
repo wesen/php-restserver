@@ -199,6 +199,9 @@ class Server {
     } else {
       $params = array_merge($_GET, $_POST);
     }
+    if (isset($params["uri"])) {
+      unset($params["uri"]);
+    }
 
     try {
       if (isset($this->map[$httpMethod])) {
