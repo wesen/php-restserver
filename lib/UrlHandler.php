@@ -109,6 +109,11 @@ class UrlHandler {
     }
 
     $result = call_user_func_array(array($obj, $this->methodName), $params);
+
+    if (method_exists($obj, 'destroy')) {
+      $obj->destroy();
+    }
+
     return array("status" => '200',
                  "error" => false,
                  "data" => $result);
