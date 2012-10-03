@@ -328,9 +328,17 @@ class Server {
       $reflection = new \ReflectionClass($handler);
     }
 
+    /**
+     * @var \ReflectionMethod[] $methods
+     */
     $methods = $reflection->getMethods(\ReflectionMethod::IS_PUBLIC);
+    $handlerClass = $reflection->getName();
 
     foreach ($methods as $method) {
+      $class = $method->getDeclaringClass()->getName();
+      if ($class != $handlerClass) {
+        continue;
+      }
       $doc = $method->getDocComment();
       $noAuth = strpos($doc, '@noAuth') !== false;
       if (preg_match('/@cache (\d+)/', $doc, $matches)) {
