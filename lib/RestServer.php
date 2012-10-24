@@ -23,14 +23,21 @@ require_once(dirname(__FILE__)."/StaticUrlHandler.php");
 
 /**
  * The REST server itself.
- **/
+ *
+ * @property mixed enableCache
+ */
 class Server {
   public $url;
   public $method;
   public $params;
+
   public $cacheDir;
   public $realm;
   public $mode;
+
+  public $enableCache;
+  public $handlers;
+  public $isCLI;
 
   /* hash from HTTP method -> list of url objects */
   var $map = array();
@@ -39,8 +46,9 @@ class Server {
   /**
    * The constructor.
    *
-   * @param string $mode The mode, either debug or production
-   **/
+   * @param array $options
+   * @internal param string $mode The mode, either debug or production
+   */
   public function __construct($options = array()) {
     $defaults = array('mode' => 'debug',
                       'realm' => 'Rest Server',
@@ -207,20 +215,28 @@ class Server {
       if (isset($this->map[$httpMethod])) {
         $res = null;
 
+        /** @var \REST\UrlHandler $handler*/
         foreach ($this->map[$httpMethod] as $url => $handler) {
           $matches = $handler->matchPath($path, $data, $params);
           if ($matches !== null) {
             $shouldCache = false;
 
-            list ($wasCached, $result, $shouldCache) = $this->handleCached($path, $handler, $httpMethod, $data, $params);
+            /* check caching */
+            list ($wasCached, $result, $shouldCache) =
+            $this->handleCached($path, $handler, $httpMethod, $data, $params);
             if ($wasCached) {
               return $result;
             }
 
-            /* check caching */
-
             /* normal handling */
             $params = $handler->genParams($matches);
+
+            /** @var \Callable $callback  */
+            if ($callback = array_get($options, "callback")) {
+              $class = $handler->class;
+              $method = $handler->methodName;
+              $callback($handler, $params);
+            }
 
             $res = $handler->call($params);
 
