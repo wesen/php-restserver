@@ -135,9 +135,9 @@ class Server {
 
     if ($handler->cache &&
         ($httpMethod == "GET") &&
-        /* leave uncached when parameters are passed (for now) */
-        ($data == null) &&
-        ($params == null) &&
+//        /* leave uncached when parameters are passed (for now) */
+//        ($data == null) &&
+//        ($params == null) &&
         function_exists('apc_fetch')) {
       $shouldCache = true;
 
@@ -157,7 +157,7 @@ class Server {
   }
 
   public function makeCacheKey($path, $data, $params) {
-    return "REST/path ".$path." data ".print_r($data, true)." params ".print_r($params, true);
+    return "REST/path ".$path." data ".var_dump_str($data)." params ".var_dump_str($params);
   }
 
   public function cacheResult($path, $data, $params, $res, $ttl) {
@@ -225,20 +225,22 @@ class Server {
             list ($wasCached, $result, $shouldCache) =
             $this->handleCached($path, $handler, $httpMethod, $data, $params);
             if ($wasCached) {
+//              error_log("cached path: $path");
               return $result;
             }
 
+//            error_log("path: $path");
             /* normal handling */
-            $params = $handler->genParams($matches);
+            $_params = $handler->genParams($matches);
 
             /** @var \Callable $callback  */
             if ($callback = array_get($options, "callback")) {
               $class = $handler->class;
               $method = $handler->methodName;
-              $callback($handler, $params);
+              $callback($handler, $_params);
             }
 
-            $res = $handler->call($params);
+            $res = $handler->call($_params);
 
             if ($shouldCache) {
               $this->cacheResult($path, $data, $params, $res, $handler->cache);
