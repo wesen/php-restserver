@@ -86,7 +86,7 @@ class Server {
   protected function writeCache() {
     if ($this->mode == 'production' && !$this->cached) {
       if (function_exists('apc_store')) {
-        apc_store('urlMap', $this->map);
+        apc_store(dirname(__FILE__).'urlMap', $this->map);
       } else {
         file_put_contents($this->cacheDir . '/urlMap.cache', serialize($this->map));
       }
@@ -107,7 +107,7 @@ class Server {
 
     if ($this->mode == 'production') {
       if (function_exists('apc_fetch')) {
-        $map = apc_fetch('urlMap');
+        $map = apc_fetch(dirname(__FILE__).'urlMap');
       } elseif (file_exists($this->cacheDir . '/urlMap.cache')) {
         $map = unserialize(file_get_contents($this->cacheDir . '/urlMap.cache'));
       }
@@ -117,7 +117,7 @@ class Server {
       }
     } else {
       if (function_exists('apc_delete')) {
-        apc_delete('urlMap');
+        apc_delete(dirname(__FILE__).'urlMap');
       } else {
         @unlink($this->cacheDir . '/urlMap.cache');
       }
@@ -157,7 +157,7 @@ class Server {
   }
 
   public function makeCacheKey($path, $data, $params) {
-    return "REST/path ".$path." data ".var_dump_str($data)." params ".var_dump_str($params);
+    return dirname(__FILE__)."REST/path ".$path." data ".var_dump_str($data)." params ".var_dump_str($params);
   }
 
   public function cacheResult($path, $data, $params, $res, $ttl) {
