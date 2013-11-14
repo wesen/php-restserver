@@ -319,9 +319,6 @@ class Server {
    * Add a handler to the Rest Server.
    **/
   public function addHandler($handler, $basePath = '') {
-    if ($handler == "MemberRest") {
-      error_log("foo");
-    }
     if (!$this->cached) {
       array_push($this->handlers, $handler);
       $this->handlers = array_unique($this->handlers);
