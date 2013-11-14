@@ -294,6 +294,14 @@ class Server {
     return $result["data"];
   }
 
+  public function options($path, $data = null, $params = array()) {
+    $result = $this->handle($path, array("method" => "OPTIONS",
+                                         "data" => $data,
+                                         "params" => $params));
+    return $result["data"];
+  }
+
+
   public function put($path, $data = null, $params = array()) {
     $result = $this->handle($path, array("method" => "PUT",
                                          "data" => $data,
@@ -311,6 +319,9 @@ class Server {
    * Add a handler to the Rest Server.
    **/
   public function addHandler($handler, $basePath = '') {
+    if ($handler == "MemberRest") {
+      error_log("foo");
+    }
     if (!$this->cached) {
       array_push($this->handlers, $handler);
       $this->handlers = array_unique($this->handlers);

@@ -119,5 +119,3 @@ class UrlHandler {
                  "data" => $result);
   }
 };
-
-?>
