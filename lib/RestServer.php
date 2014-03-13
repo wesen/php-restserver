@@ -271,6 +271,7 @@ class Server {
       if ($this->mode == "debug") {
         throw $e;
       } else {
+        error_log('REST EXCEPTION CAUGHT: ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
         $e = new Exception('500');
         $message = $this->codes[$e->getCode()]. ($e->getMessage() && $this->mode == 'debug' ? ': ' . $e->getMessage() : '');
 
