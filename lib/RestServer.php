@@ -54,11 +54,14 @@ class Server {
                       'realm' => 'Rest Server',
                       'cacheDir' => dirname(__FILE__)."/cache",
                       'isCLI' => false,
+                      'useApc' => false,
                       'handlers' => array(),
                       "enableCache" => false);
 
     $options = array_merge($defaults, $options);
     object_set_options($this, $options, array_keys($defaults));
+
+    $this->useApc = $this->useApc && function_exists('apc_fetch');
 
     if (defined('STDIN')) {
       $this->isCLI = true;
@@ -85,7 +88,7 @@ class Server {
    **/
   protected function writeCache() {
     if ($this->mode == 'production' && !$this->cached) {
-      if (function_exists('apc_store')) {
+      if ($this->useApc) {
         apc_store(dirname(__FILE__).'urlMap', $this->map);
       } else {
         file_put_contents($this->cacheDir . '/urlMap.cache', serialize($this->map));
@@ -106,17 +109,17 @@ class Server {
     $this->cached = false;
 
     if ($this->mode == 'production') {
-      if (function_exists('apc_fetch')) {
+      if ($this->useApc) {
         $map = apc_fetch(dirname(__FILE__).'urlMap');
       } elseif (file_exists($this->cacheDir . '/urlMap.cache')) {
         $map = unserialize(file_get_contents($this->cacheDir . '/urlMap.cache'));
       }
-      if ($map && is_array($map)) {
+      if (isset($map) && is_array($map)) {
         $this->map = $map;
         $this->cached = true;
       }
     } else {
-      if (function_exists('apc_delete')) {
+      if ($this->useApc) {
         apc_delete(dirname(__FILE__).'urlMap');
       } else {
         @unlink($this->cacheDir . '/urlMap.cache');
@@ -138,7 +141,7 @@ class Server {
 //        /* leave uncached when parameters are passed (for now) */
 //        ($data == null) &&
 //        ($params == null) &&
-        function_exists('apc_fetch')) {
+        $this->useApc) {
       $shouldCache = true;
 
       $key = $this->makeCacheKey($path, $data, $params);
@@ -165,7 +168,7 @@ class Server {
       return;
     }
 
-    if (function_exists('apc_store')) {
+    if ($this->useApc) {
       $key = $this->makeCacheKey($path, $data, $params);
       apc_store($key, $res, $ttl);
       $res = apc_fetch($key);
