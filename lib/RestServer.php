@@ -11,6 +11,9 @@
 
 namespace REST;
 
+use \Rollbar\Rollbar;
+use \Rollbar\Payload\Level;
+
 require_once(dirname(__FILE__)."/helpers.php");
 require_once(dirname(__FILE__)."/UrlHandler.php");
 require_once(dirname(__FILE__)."/StaticUrlHandler.php");
@@ -274,7 +277,8 @@ class Server {
       if ($this->mode == "debug") {
         throw $e;
       } else {
-        error_log('REST EXCEPTION CAUGHT: ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
+        Rollbar::log(Level::ERROR, $e);
+
         $e = new Exception('500');
         $message = $this->codes[$e->getCode()]. ($e->getMessage() && $this->mode == 'debug' ? ': ' . $e->getMessage() : '');
 
